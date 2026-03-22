@@ -1,0 +1,554 @@
+﻿<Window x:Class="WpfApplication1.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="{Binding WindowTitle}"
+        Height="900"
+        Width="1500"
+        MinHeight="720"
+        MinWidth="1180"
+        WindowStartupLocation="CenterScreen">
+    <Grid Background="#F3F5F8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="230" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Margin="16,16,16,12"
+                Padding="16"
+                Background="White"
+                BorderBrush="#D9E0E7"
+                BorderThickness="1"
+                CornerRadius="10">
+            <DockPanel LastChildFill="True">
+                <StackPanel Orientation="Horizontal"
+                            DockPanel.Dock="Left">
+                    <Button Margin="0,0,8,0"
+                            Padding="16,8"
+                            Command="{Binding NewWorkflowCommand}"
+                            Content="新建流程" />
+                    <Button Margin="0,0,8,0"
+                            Padding="16,8"
+                            Command="{Binding SaveWorkflowCommand}"
+                            Content="保存流程" />
+                    <Button Margin="0,0,8,0"
+                            Padding="16,8"
+                            Command="{Binding LoadWorkflowCommand}"
+                            Content="加载流程" />
+                    <Button Margin="0,0,8,0"
+                            Padding="16,8"
+                            Command="{Binding OpenElementPickerCommand}"
+                            Content="元素拾取器" />
+                    <Button Margin="0,0,8,0"
+                            Padding="16,8"
+                            Command="{Binding RunWorkflowCommand}"
+                            Content="运行全部" />
+                    <Button Margin="0,0,8,0"
+                            Padding="16,8"
+                            Command="{Binding RunFromSelectedStepCommand}"
+                            Content="从当前步骤运行" />
+                    <Button Margin="0,0,8,0"
+                            Padding="16,8"
+                            Command="{Binding RunSelectedStepCommand}"
+                            Content="单步执行" />
+                    <Button Padding="16,8"
+                            Command="{Binding StopWorkflowCommand}"
+                            Content="停止执行" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <TextBlock Margin="0,0,12,0"
+                               VerticalAlignment="Center"
+                               FontSize="13"
+                               Foreground="#5B6470"
+                               Text="{Binding CurrentWorkflowName}" />
+                    <Border Padding="12,6"
+                            Background="#E9F4EC"
+                            CornerRadius="14">
+                        <TextBlock FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="#23653A"
+                                   Text="{Binding StatusText}" />
+                    </Border>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1"
+              Margin="16,0,16,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="340" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Margin="0,0,12,0"
+                    Padding="12"
+                    Background="White"
+                    BorderBrush="#D9E0E7"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Top"
+                               Margin="0,0,0,12"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Text="步骤库" />
+
+                    <Button DockPanel.Dock="Bottom"
+                            Margin="0,12,0,0"
+                            Padding="12,8"
+                            Command="{Binding AddStepCommand}"
+                            Content="添加到流程" />
+
+                    <ListBox ItemsSource="{Binding AvailableSteps}"
+                             SelectedItem="{Binding SelectedToolboxStep}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,8"
+                                        Padding="10"
+                                        Background="#F7F9FC"
+                                        BorderBrush="#E1E7EE"
+                                        BorderThickness="1"
+                                        CornerRadius="8">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="{Binding Name}" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#5B6470"
+                                                   Text="{Binding Description}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Margin="0,0,12,0"
+                    Padding="12"
+                    Background="White"
+                    BorderBrush="#D9E0E7"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                <DockPanel LastChildFill="True">
+                    <Grid DockPanel.Dock="Top"
+                          Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="流程设计区" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Foreground="#5B6470"
+                                       Text="{Binding WorkflowSummary}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <Button Margin="0,0,8,0"
+                                    Padding="10,6"
+                                    Command="{Binding MoveStepUpCommand}"
+                                    Content="上移" />
+                            <Button Margin="0,0,8,0"
+                                    Padding="10,6"
+                                    Command="{Binding MoveStepDownCommand}"
+                                    Content="下移" />
+                            <Button Padding="10,6"
+                                    Command="{Binding RemoveSelectedStepCommand}"
+                                    Content="删除" />
+                        </StackPanel>
+                    </Grid>
+
+                    <ListBox ItemsSource="{Binding CurrentWorkflow.Steps}"
+                             SelectedItem="{Binding SelectedWorkflowStep}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,8"
+                                        Padding="12"
+                                        Background="#F8FAFD"
+                                        BorderBrush="#E1E7EE"
+                                        BorderThickness="1"
+                                        CornerRadius="8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="140" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding Name}" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Foreground="#5B6470"
+                                                       Text="{Binding StepType}" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1"
+                                                    HorizontalAlignment="Right">
+                                            <TextBlock HorizontalAlignment="Right"
+                                                       Foreground="#5B6470"
+                                                       Text="{Binding TimeoutMs, StringFormat=超时 {0} 毫秒}" />
+                                            <TextBlock HorizontalAlignment="Right"
+                                                       Foreground="#5B6470"
+                                                       Text="{Binding RetryCount, StringFormat=重试 {0} 次}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Padding="12"
+                    Background="White"
+                    BorderBrush="#D9E0E7"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                <Grid>
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="14"
+                               Foreground="#6E7885"
+                               Text="请先在流程中选中一个步骤。">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedWorkflowStep}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <StackPanel>
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedWorkflowStep}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <TextBlock Margin="0,0,0,12"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Text="步骤属性" />
+
+                        <TextBlock Foreground="#5B6470"
+                                   Text="步骤名称" />
+                        <TextBox Margin="0,6,0,12"
+                                 Text="{Binding SelectedWorkflowStep.Name, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Foreground="#5B6470"
+                                   Text="步骤类型" />
+                        <TextBox Margin="0,6,0,12"
+                                 IsReadOnly="True"
+                                 Text="{Binding SelectedWorkflowStep.StepType}" />
+
+                        <TextBlock Foreground="#5B6470"
+                                   Text="超时时间（毫秒）" />
+                        <TextBox Margin="0,6,0,12"
+                                 Text="{Binding SelectedWorkflowStep.TimeoutMs, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Foreground="#5B6470"
+                                   Text="重试次数" />
+                        <TextBox Margin="0,6,0,12"
+                                 Text="{Binding SelectedWorkflowStep.RetryCount, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <CheckBox Margin="0,0,0,12"
+                                  Content="失败后继续执行"
+                                  IsChecked="{Binding SelectedWorkflowStep.ContinueOnError}" />
+
+                        <Border Margin="0,0,0,12"
+                                Padding="10"
+                                Background="#F8FAFD"
+                                BorderBrush="#E1E7EE"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasStructuredStepEditor}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+
+                                <TextBlock Margin="0,0,0,10"
+                                           FontWeight="SemiBold"
+                                           Text="快捷配置" />
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowUrlEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="{Binding UrlEditorLabel}" />
+                                    <TextBox Margin="0,6,0,0"
+                                             Text="{Binding UrlParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowSelectorEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="{Binding SelectorEditorLabel}" />
+                                    <DockPanel Margin="0,6,0,0"
+                                               LastChildFill="True">
+                                        <Button DockPanel.Dock="Right"
+                                                Margin="8,0,0,0"
+                                                Padding="10,4"
+                                                Command="{Binding OpenElementPickerCommand}"
+                                                Content="拾取页面元素" />
+                                        <TextBox Text="{Binding SelectorParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    </DockPanel>
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowInputTextEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="输入内容" />
+                                    <TextBox Margin="0,6,0,0"
+                                             Text="{Binding InputTextParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowReadTextEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="输出变量名" />
+                                    <TextBox Margin="0,6,0,0"
+                                             Text="{Binding ReadVariableNameParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowSelectOptionEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="目标选项" />
+                                    <TextBox Margin="0,6,0,8"
+                                             Text="{Binding OptionParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="匹配方式" />
+                                    <ComboBox Margin="0,6,0,0"
+                                              ItemsSource="{Binding MatchModeOptions}"
+                                              SelectedItem="{Binding MatchModeParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowHandleAlertEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="弹窗动作" />
+                                    <ComboBox Margin="0,6,0,8"
+                                              ItemsSource="{Binding AlertActionOptions}"
+                                              SelectedItem="{Binding AlertActionParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="按钮文本" />
+                                    <TextBox Margin="0,6,0,8"
+                                             Text="{Binding AlertButtonTextParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="窗口标题包含" />
+                                    <TextBox Margin="0,6,0,0"
+                                             Text="{Binding AlertTitleContainsParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowSetVariableEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="变量名" />
+                                    <TextBox Margin="0,6,0,8"
+                                             Text="{Binding SetVariableNameParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="变量值" />
+                                    <TextBox Margin="0,6,0,0"
+                                             Text="{Binding SetVariableValueParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Margin="0,0,0,10">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowWriteLogEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="日志内容" />
+                                    <TextBox Margin="0,6,0,0"
+                                             Text="{Binding WriteLogMessageParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel>
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowDelayEditor}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="#5B6470"
+                                               Text="等待时长（毫秒）" />
+                                    <TextBox Margin="0,6,0,0"
+                                             Text="{Binding DelayDurationParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <DockPanel Margin="0,0,0,6"
+                                   LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left"
+                                       Foreground="#5B6470"
+                                       Text="高级参数（每行一个 key = value）" />
+                            <Button DockPanel.Dock="Right"
+                                    Padding="10,4"
+                                    Command="{Binding OpenElementPickerCommand}"
+                                    Content="拾取页面元素并写回当前步骤" />
+                        </DockPanel>
+                        <TextBox Margin="0,0,0,0"
+                                 Height="120"
+                                 AcceptsReturn="True"
+                                 IsReadOnly="False"
+                                 Text="{Binding SelectedStepParametersEditor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Margin="16,0,16,16"
+                Padding="12"
+                Background="White"
+                BorderBrush="#D9E0E7"
+                BorderThickness="1"
+                CornerRadius="10">
+            <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Top"
+                           Margin="0,0,0,4"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Text="执行日志" />
+                <TextBlock DockPanel.Dock="Top"
+                           Margin="0,0,0,12"
+                           Foreground="#5B6470"
+                           Text="双击日志行可复制详细内容，便于粘贴到工单或聊天窗口中排查问题。" />
+
+                <DataGrid x:Name="LogsDataGrid"
+                          ItemsSource="{Binding Logs}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          HeadersVisibility="Column"
+                          IsReadOnly="True"
+                          MouseDoubleClick="LogsDataGrid_OnMouseDoubleClick">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Width="170"
+                                            Binding="{Binding Timestamp, StringFormat=yyyy-MM-dd HH:mm:ss}"
+                                            Header="时间" />
+                        <DataGridTextColumn Width="90"
+                                            Binding="{Binding Level}"
+                                            Header="级别" />
+                        <DataGridTextColumn Width="160"
+                                            Binding="{Binding StepName}"
+                                            Header="步骤" />
+                        <DataGridTextColumn Width="*"
+                                            Binding="{Binding Message}"
+                                            Header="消息" />
+                        <DataGridTextColumn Width="260"
+                                            Binding="{Binding ScreenshotPath}"
+                                            Header="截图路径" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
