@@ -3,552 +3,641 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WpfApplication1"
+        xmlns:enums="clr-namespace:WpfApplication1.Enums"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
-        Height="900"
-        Width="1500"
-        MinHeight="720"
-        MinWidth="1180"
-        WindowStartupLocation="CenterScreen">
-    <Grid Background="#F3F5F8">
+        Width="1600"
+        Height="980"
+        MinWidth="1280"
+        MinHeight="780"
+        Background="{StaticResource AppBackgroundBrush}"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_OnLoaded">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <DrawingBrush x:Key="CanvasGridBrush" TileMode="Tile" Viewport="0,0,24,24" ViewportUnits="Absolute" Viewbox="0,0,24,24" ViewboxUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <GeometryDrawing Brush="#F6F3EC">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#E4DDD1" Thickness="0.8" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <LineGeometry StartPoint="24,0" EndPoint="24,24" />
+                            <LineGeometry StartPoint="0,24" EndPoint="24,24" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+        <Style x:Key="CardStyle" TargetType="Border" BasedOn="{StaticResource PanelBorderStyle}">
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style x:Key="ParameterDescriptionStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasDescription}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="TextParameterTemplate">
+            <StackPanel>
+                <TextBlock Style="{StaticResource LabelStyle}" Text="{Binding DisplayLabel}" />
+                <TextBlock Style="{StaticResource ParameterDescriptionStyle}" Text="{Binding Description}" />
+                <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="MultiLineParameterTemplate">
+            <StackPanel>
+                <TextBlock Style="{StaticResource LabelStyle}" Text="{Binding DisplayLabel}" />
+                <TextBlock Style="{StaticResource ParameterDescriptionStyle}" Text="{Binding Description}" />
+                <TextBox Height="92" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="BooleanParameterTemplate">
+            <StackPanel>
+                <TextBlock Style="{StaticResource LabelStyle}" Text="{Binding DisplayLabel}" />
+                <TextBlock Style="{StaticResource ParameterDescriptionStyle}" Text="{Binding Description}" />
+                <CheckBox Content="启用" IsChecked="{Binding BooleanValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="SelectParameterTemplate">
+            <StackPanel>
+                <TextBlock Style="{StaticResource LabelStyle}" Text="{Binding DisplayLabel}" />
+                <TextBlock Style="{StaticResource ParameterDescriptionStyle}" Text="{Binding Description}" />
+                <ComboBox ItemsSource="{Binding Options}" DisplayMemberPath="DisplayName" SelectedValuePath="Value" SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="XPathParameterTemplate">
+            <StackPanel>
+                <TextBlock Style="{StaticResource LabelStyle}" Text="{Binding DisplayLabel}" />
+                <TextBlock Style="{StaticResource ParameterDescriptionStyle}" Text="{Binding Description}" />
+                <DockPanel LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding DataContext.OpenParameterElementPickerCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Key}" Content="拾取">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SupportsPicker}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                </DockPanel>
+            </StackPanel>
+        </DataTemplate>
+        <local:StepParameterEditorTemplateSelector x:Key="StepParameterEditorTemplateSelector"
+                                                   TextParameterTemplate="{StaticResource TextParameterTemplate}"
+                                                   MultiLineParameterTemplate="{StaticResource MultiLineParameterTemplate}"
+                                                   BooleanParameterTemplate="{StaticResource BooleanParameterTemplate}"
+                                                   SelectParameterTemplate="{StaticResource SelectParameterTemplate}"
+                                                   XPathParameterTemplate="{StaticResource XPathParameterTemplate}" />
+    </Window.Resources>
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="230" />
+            <RowDefinition Height="6" />
+            <RowDefinition x:Name="LogDrawerRow" Height="240" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0"
-                Margin="16,16,16,12"
-                Padding="16"
-                Background="White"
-                BorderBrush="#D9E0E7"
-                BorderThickness="1"
-                CornerRadius="10">
-            <DockPanel LastChildFill="True">
-                <StackPanel Orientation="Horizontal"
-                            DockPanel.Dock="Left">
-                    <Button Margin="0,0,8,0"
-                            Padding="16,8"
-                            Command="{Binding NewWorkflowCommand}"
-                            Content="新建流程" />
-                    <Button Margin="0,0,8,0"
-                            Padding="16,8"
-                            Command="{Binding SaveWorkflowCommand}"
-                            Content="保存流程" />
-                    <Button Margin="0,0,8,0"
-                            Padding="16,8"
-                            Command="{Binding LoadWorkflowCommand}"
-                            Content="加载流程" />
-                    <Button Margin="0,0,8,0"
-                            Padding="16,8"
-                            Command="{Binding OpenElementPickerCommand}"
-                            Content="元素拾取器" />
-                    <Button Margin="0,0,8,0"
-                            Padding="16,8"
-                            Command="{Binding RunWorkflowCommand}"
-                            Content="运行全部" />
-                    <Button Margin="0,0,8,0"
-                            Padding="16,8"
-                            Command="{Binding RunFromSelectedStepCommand}"
-                            Content="从当前步骤运行" />
-                    <Button Margin="0,0,8,0"
-                            Padding="16,8"
-                            Command="{Binding RunSelectedStepCommand}"
-                            Content="单步执行" />
-                    <Button Padding="16,8"
-                            Command="{Binding StopWorkflowCommand}"
-                            Content="停止执行" />
+        <Border Grid.Row="0" Margin="16,16,16,12" Style="{StaticResource PanelBorderStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2.4*" />
+                    <ColumnDefinition Width="2.8*" />
+                    <ColumnDefinition Width="2.1*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="IE RPA V1.2 工作台" />
+                    <TextBlock Margin="0,6,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="流程管理、纯画布设计、已发布调度和运行恢复的一体化入口" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="{Binding CurrentWorkflowName}" />
+                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding CurrentWorkflowMetaText}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding CurrentWorkflowPathText}" TextWrapping="Wrap" />
                 </StackPanel>
-
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right">
-                    <TextBlock Margin="0,0,12,0"
-                               VerticalAlignment="Center"
-                               FontSize="13"
-                               Foreground="#5B6470"
-                               Text="{Binding CurrentWorkflowName}" />
-                    <Border Padding="12,6"
-                            Background="#E9F4EC"
-                            CornerRadius="14">
-                        <TextBlock FontSize="13"
-                                   FontWeight="SemiBold"
-                                   Foreground="#23653A"
-                                   Text="{Binding StatusText}" />
-                    </Border>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SaveDraftWorkflowCommand}" Content="保存草稿" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding PublishCurrentWorkflowCommand}" Content="发布当前流程" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RunWorkflowCommand}" Content="运行当前流程" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RunSelectedStepCommand}" Content="单步调试" />
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectShellPageCommand}" CommandParameter="ScheduleCenter" Content="打开调度中心" />
                 </StackPanel>
-            </DockPanel>
+                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Border Margin="0,0,8,0" Padding="10,6" Background="{StaticResource AccentSoftBrush}" CornerRadius="14">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding EmployeeDisplayText}" />
+                        </Border>
+                        <Border Padding="10,6" Background="#EAF6ED" CornerRadius="14">
+                            <TextBlock FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Text="{Binding StatusText}" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Margin="0,10,0,0" HorizontalAlignment="Right" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding SchedulerStatusText}" TextWrapping="Wrap" />
+                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding EditEmployeeIdCommand}" Content="编辑工号" />
+                        <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding LoadWorkflowCommand}" Content="导入旧流程" />
+                        <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SaveWorkflowCommand}" Content="导出副本" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
         </Border>
 
-        <Grid Grid.Row="1"
-              Margin="16,0,16,12">
+        <Grid Grid.Row="1" Margin="16,0,16,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="220" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="340" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0"
-                    Margin="0,0,12,0"
-                    Padding="12"
-                    Background="White"
-                    BorderBrush="#D9E0E7"
-                    BorderThickness="1"
-                    CornerRadius="10">
-                <DockPanel LastChildFill="True">
-                    <TextBlock DockPanel.Dock="Top"
-                               Margin="0,0,0,12"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Text="步骤库" />
-
-                    <Button DockPanel.Dock="Bottom"
-                            Margin="0,12,0,0"
-                            Padding="12,8"
-                            Command="{Binding AddStepCommand}"
-                            Content="添加到流程" />
-
-                    <ListBox ItemsSource="{Binding AvailableSteps}"
-                             SelectedItem="{Binding SelectedToolboxStep}">
+            <Border Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource PanelBorderStyle}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource PageTitleStyle}" FontSize="20" Text="导航" />
+                    <TextBlock DockPanel.Dock="Top" Margin="0,4,0,12" Foreground="{StaticResource TextSecondaryBrush}" Text="工作台、流程管理、设计器、调度中心、运行中心、日志中心、本机任务" TextWrapping="Wrap" />
+                    <ListBox ItemsSource="{Binding NavigationItems}" SelectedItem="{Binding SelectedNavigationItem}" Style="{StaticResource NavListBoxStyle}">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource NavListBoxItemStyle}" />
+                        </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="0,0,0,8"
-                                        Padding="10"
-                                        Background="#F7F9FC"
-                                        BorderBrush="#E1E7EE"
-                                        BorderThickness="1"
-                                        CornerRadius="8">
-                                    <StackPanel>
-                                        <TextBlock FontWeight="SemiBold"
-                                                   Text="{Binding Name}" />
-                                        <TextBlock Margin="0,4,0,0"
-                                                   Foreground="#5B6470"
-                                                   Text="{Binding Description}"
-                                                   TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-            </Border>
-
-            <Border Grid.Column="1"
-                    Margin="0,0,12,0"
-                    Padding="12"
-                    Background="White"
-                    BorderBrush="#D9E0E7"
-                    BorderThickness="1"
-                    CornerRadius="10">
-                <DockPanel LastChildFill="True">
-                    <Grid DockPanel.Dock="Top"
-                          Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel>
-                            <TextBlock FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Text="流程设计区" />
-                            <TextBlock Margin="0,4,0,0"
-                                       Foreground="#5B6470"
-                                       Text="{Binding WorkflowSummary}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center">
-                            <Button Margin="0,0,8,0"
-                                    Padding="10,6"
-                                    Command="{Binding MoveStepUpCommand}"
-                                    Content="上移" />
-                            <Button Margin="0,0,8,0"
-                                    Padding="10,6"
-                                    Command="{Binding MoveStepDownCommand}"
-                                    Content="下移" />
-                            <Button Padding="10,6"
-                                    Command="{Binding RemoveSelectedStepCommand}"
-                                    Content="删除" />
-                        </StackPanel>
-                    </Grid>
-
-                    <ListBox ItemsSource="{Binding CurrentWorkflow.Steps}"
-                             SelectedItem="{Binding SelectedWorkflowStep}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Border Margin="0,0,0,8"
-                                        Padding="12"
-                                        Background="#F8FAFD"
-                                        BorderBrush="#E1E7EE"
-                                        BorderThickness="1"
-                                        CornerRadius="8">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="140" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       Text="{Binding Name}" />
-                                            <TextBlock Margin="0,4,0,0"
-                                                       Foreground="#5B6470"
-                                                       Text="{Binding StepType}" />
-                                        </StackPanel>
-
-                                        <StackPanel Grid.Column="1"
-                                                    HorizontalAlignment="Right">
-                                            <TextBlock HorizontalAlignment="Right"
-                                                       Foreground="#5B6470"
-                                                       Text="{Binding TimeoutMs, StringFormat=超时 {0} 毫秒}" />
-                                            <TextBlock HorizontalAlignment="Right"
-                                                       Foreground="#5B6470"
-                                                       Text="{Binding RetryCount, StringFormat=重试 {0} 次}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-            </Border>
-
-            <Border Grid.Column="2"
-                    Padding="12"
-                    Background="White"
-                    BorderBrush="#D9E0E7"
-                    BorderThickness="1"
-                    CornerRadius="10">
-                <Grid>
-                    <TextBlock HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               FontSize="14"
-                               Foreground="#6E7885"
-                               Text="请先在流程中选中一个步骤。">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelectedWorkflowStep}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-
-                    <StackPanel>
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelectedWorkflowStep}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-
-                        <TextBlock Margin="0,0,0,12"
-                                   FontSize="18"
-                                   FontWeight="SemiBold"
-                                   Text="步骤属性" />
-
-                        <TextBlock Foreground="#5B6470"
-                                   Text="步骤名称" />
-                        <TextBox Margin="0,6,0,12"
-                                 Text="{Binding SelectedWorkflowStep.Name, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Foreground="#5B6470"
-                                   Text="步骤类型" />
-                        <TextBox Margin="0,6,0,12"
-                                 IsReadOnly="True"
-                                 Text="{Binding SelectedWorkflowStep.StepType}" />
-
-                        <TextBlock Foreground="#5B6470"
-                                   Text="超时时间（毫秒）" />
-                        <TextBox Margin="0,6,0,12"
-                                 Text="{Binding SelectedWorkflowStep.TimeoutMs, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Foreground="#5B6470"
-                                   Text="重试次数" />
-                        <TextBox Margin="0,6,0,12"
-                                 Text="{Binding SelectedWorkflowStep.RetryCount, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <CheckBox Margin="0,0,0,12"
-                                  Content="失败后继续执行"
-                                  IsChecked="{Binding SelectedWorkflowStep.ContinueOnError}" />
-
-                        <Border Margin="0,0,0,12"
-                                Padding="10"
-                                Background="#F8FAFD"
-                                BorderBrush="#E1E7EE"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                            <StackPanel>
-                                <StackPanel.Style>
-                                    <Style TargetType="StackPanel">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasStructuredStepEditor}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </StackPanel.Style>
-
-                                <TextBlock Margin="0,0,0,10"
-                                           FontWeight="SemiBold"
-                                           Text="快捷配置" />
-
-                                <StackPanel Margin="0,0,0,10">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowUrlEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="{Binding UrlEditorLabel}" />
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="{Binding UrlParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-
-                                <StackPanel Margin="0,0,0,10">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowSelectorEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="{Binding SelectorEditorLabel}" />
-                                    <DockPanel Margin="0,6,0,0"
-                                               LastChildFill="True">
-                                        <Button DockPanel.Dock="Right"
-                                                Margin="8,0,0,0"
-                                                Padding="10,4"
-                                                Command="{Binding OpenElementPickerCommand}"
-                                                Content="拾取页面元素" />
-                                        <TextBox Text="{Binding SelectorParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    </DockPanel>
-                                </StackPanel>
-
-                                <StackPanel Margin="0,0,0,10">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowInputTextEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="输入内容" />
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="{Binding InputTextParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-
-                                <StackPanel Margin="0,0,0,10">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowReadTextEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="输出变量名" />
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="{Binding ReadVariableNameParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-
-                                <StackPanel Margin="0,0,0,10">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowSelectOptionEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="目标选项" />
-                                    <TextBox Margin="0,6,0,8"
-                                             Text="{Binding OptionParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="匹配方式" />
-                                    <ComboBox Margin="0,6,0,0"
-                                              ItemsSource="{Binding MatchModeOptions}"
-                                              SelectedItem="{Binding MatchModeParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-
-                                <StackPanel Margin="0,0,0,10">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowHandleAlertEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="弹窗动作" />
-                                    <ComboBox Margin="0,6,0,8"
-                                              ItemsSource="{Binding AlertActionOptions}"
-                                              SelectedItem="{Binding AlertActionParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="按钮文本" />
-                                    <TextBox Margin="0,6,0,8"
-                                             Text="{Binding AlertButtonTextParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="窗口标题包含" />
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="{Binding AlertTitleContainsParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-
-                                <StackPanel Margin="0,0,0,10">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowSetVariableEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="变量名" />
-                                    <TextBox Margin="0,6,0,8"
-                                             Text="{Binding SetVariableNameParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="变量值" />
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="{Binding SetVariableValueParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-
-                                <StackPanel Margin="0,0,0,10">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowWriteLogEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="日志内容" />
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="{Binding WriteLogMessageParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-
                                 <StackPanel>
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowDelayEditor}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Foreground="#5B6470"
-                                               Text="等待时长（毫秒）" />
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="{Binding DelayDurationParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Description}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <Grid Grid.Column="1">
+                <Grid Visibility="{Binding IsWorkbenchPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <UniformGrid Columns="4" Margin="0,0,0,12">
+                        <Border Style="{StaticResource CardStyle}"><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="待申请" /><TextBlock FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Text="{Binding PendingApplyText}" /></StackPanel></Border>
+                        <Border Style="{StaticResource CardStyle}"><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="待查询" /><TextBlock FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Text="{Binding PendingQueryText}" /></StackPanel></Border>
+                        <Border Style="{StaticResource CardStyle}"><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="今日完成" /><TextBlock FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Text="{Binding CompletedTodayText}" /></StackPanel></Border>
+                        <Border Style="{StaticResource CardStyle}"><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="今日失败" /><TextBlock FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource ErrorBrush}" Text="{Binding FailedTodayText}" /></StackPanel></Border>
+                    </UniformGrid>
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.05*" />
+                            <ColumnDefinition Width="1.3*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="主链路快捷入口" />
+                                    <Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SelectShellPageCommand}" CommandParameter="WorkflowManagement" Content="进入流程管理" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectShellPageCommand}" CommandParameter="Designer" Content="打开当前设计器" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectShellPageCommand}" CommandParameter="ScheduleCenter" Content="前往调度中心" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectShellPageCommand}" CommandParameter="LocalTasks" Content="处理本机恢复" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource CardStyle}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="当前运行" />
+                                    <TextBlock Margin="0,10,0,0" Style="{StaticResource LabelStyle}" Text="当前流程" />
+                                    <TextBlock Text="{Binding RuntimeState.CurrentWorkflowName}" />
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="当前步骤" />
+                                    <TextBlock Text="{Binding CurrentStepDisplayText}" />
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="建议动作" />
+                                    <TextBlock Text="{Binding SuggestedActionText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <Border Grid.Column="1" Style="{StaticResource CardStyle}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Style="{StaticResource PageTitleStyle}" FontSize="18" Text="最近运行记录" />
+                                <ListBox Margin="0,12,0,0" ItemsSource="{Binding RunHistoryItems}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,8" Padding="12" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10">
+                                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock FontWeight="SemiBold" Text="{Binding WorkflowName}" /><TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Mode}" /><TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding ErrorSummary}" TextWrapping="Wrap" /></StackPanel><StackPanel Grid.Column="1" HorizontalAlignment="Right"><TextBlock HorizontalAlignment="Right" FontWeight="SemiBold" Text="{Binding Result}" /><TextBlock Margin="0,4,0,0" HorizontalAlignment="Right" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding DurationText}" /></StackPanel></Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <Grid Visibility="{Binding IsWorkflowManagementPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.35*" />
+                        <ColumnDefinition Width="1.1*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource PanelBorderStyle}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                <TextBlock Style="{StaticResource PageTitleStyle}" Text="流程管理" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="先选流程类型再创建；草稿保存在本机目录，发布后才进入调度中心。" TextWrapping="Wrap" />
+                                <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="170" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0" SelectedValuePath="Tag" SelectedValue="{Binding SelectedWorkflowFilterType, Mode=TwoWay}">
+                                        <ComboBoxItem Content="全部类型" Tag="{x:Null}" />
+                                        <ComboBoxItem Content="申请流程" Tag="{x:Static enums:WorkflowType.Apply}" />
+                                        <ComboBoxItem Content="审批流程" Tag="{x:Static enums:WorkflowType.Approval}" />
+                                        <ComboBoxItem Content="查询流程" Tag="{x:Static enums:WorkflowType.Query}" />
+                                        <ComboBoxItem Content="调度编排模板" Tag="{x:Static enums:WorkflowType.IntegratedScheduler}" />
+                                        <ComboBoxItem Content="通用流程" Tag="{x:Static enums:WorkflowType.General}" />
+                                        <ComboBoxItem Content="子流程" Tag="{x:Static enums:WorkflowType.Subflow}" />
+                                    </ComboBox>
+                                    <TextBox Grid.Column="2" Text="{Binding WorkflowFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="3" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CreateWorkflowCommand}" Content="新建流程" />
+                                    <Button Grid.Column="4" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ImportCatalogWorkflowCommand}" Content="导入到目录" />
+                                    <Button Grid.Column="5" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshWorkflowCatalogCommand}" Content="刷新" />
+                                </Grid>
+                            </StackPanel>
+                            <ListBox x:Name="WorkflowCatalogListBox" ItemsSource="{Binding WorkflowCatalogView}" SelectedItem="{Binding SelectedWorkflowListItem}" MouseDoubleClick="WorkflowCatalogListBox_OnMouseDoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" Padding="12" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding WorkflowTypeDisplay}" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Description}" TextWrapping="Wrap" />
+                                                <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{StaticResource AccentBrush}" Text="{Binding PublishedDisplay}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource PanelBorderStyle}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource PageTitleStyle}" Text="流程详情" />
+                                <TextBlock Margin="0,12,0,0" Style="{StaticResource LabelStyle}" Text="流程名称" />
+                                <TextBox Text="{Binding CurrentWorkflow.Name, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="流程元数据" />
+                                <TextBlock Text="{Binding CurrentWorkflowMetaText}" TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="流程说明" />
+                                <TextBox Height="72" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" Text="{Binding CurrentWorkflow.Description, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="适用角色" />
+                                <TextBox Text="{Binding CurrentWorkflow.ApplicableRole, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="草稿路径" />
+                                <TextBlock Text="{Binding CurrentWorkflowPathText}" TextWrapping="Wrap" />
+                                <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
+                                    <Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding OpenSelectedWorkflowCommand}" Content="打开设计器" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding DuplicateWorkflowCommand}" Content="复制" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ExportCatalogWorkflowCommand}" Content="导出" />
+                                </StackPanel>
+                                <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SaveDraftWorkflowCommand}" Content="保存当前草稿" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding PublishCurrentWorkflowCommand}" Content="发布当前流程" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding DeleteWorkflowCommand}" Content="删除所选" />
                                 </StackPanel>
                             </StackPanel>
-                        </Border>
-
-                        <DockPanel Margin="0,0,0,6"
-                                   LastChildFill="False">
-                            <TextBlock DockPanel.Dock="Left"
-                                       Foreground="#5B6470"
-                                       Text="高级参数（每行一个 key = value）" />
-                            <Button DockPanel.Dock="Right"
-                                    Padding="10,4"
-                                    Command="{Binding OpenElementPickerCommand}"
-                                    Content="拾取页面元素并写回当前步骤" />
-                        </DockPanel>
-                        <TextBox Margin="0,0,0,0"
-                                 Height="120"
-                                 AcceptsReturn="True"
-                                 IsReadOnly="False"
-                                 Text="{Binding SelectedStepParametersEditor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto" />
-                    </StackPanel>
+                        </ScrollViewer>
+                    </Border>
                 </Grid>
-            </Border>
+                <Grid Visibility="{Binding IsDesignerPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="DesignerLeftPaneColumn" Width="280" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition x:Name="DesignerRightPaneColumn" Width="360" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource PanelBorderStyle}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                <TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="节点组件库" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="支持分类检索、双击加入主干、拖拽到画布。" TextWrapping="Wrap" />
+                                <TextBox Margin="0,12,0,0" Text="{Binding NodeLibrarySearchText, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <Button DockPanel.Dock="Bottom" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddStepCommand}" Content="加入当前主干" />
+                            <ListBox x:Name="ToolboxListBox" ItemsSource="{Binding AvailableStepsView}" SelectedItem="{Binding SelectedToolboxStep}" PreviewMouseMove="ToolboxListBox_OnPreviewMouseMove" MouseDoubleClick="ToolboxListBox_OnMouseDoubleClick">
+                                <ListBox.GroupStyle>
+                                    <GroupStyle>
+                                        <GroupStyle.HeaderTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,12,0,8" Padding="8,4" Background="{StaticResource AccentSoftBrush}" CornerRadius="8">
+                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </GroupStyle.HeaderTemplate>
+                                    </GroupStyle>
+                                </ListBox.GroupStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" Padding="12" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Description}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                    <GridSplitter Grid.Column="1" Width="6" Background="{StaticResource PanelBorderBrush}" DragCompleted="DesignerGridSplitter_OnDragCompleted" />
+                    <Border Grid.Column="2" Margin="12,0,12,0" Style="{StaticResource PanelBorderStyle}">
+                        <DockPanel>
+                            <Grid DockPanel.Dock="Top" Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="纯画布流程设计器" /><TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="执行内核仍沿用顺序 Steps，画布只负责节点布局、拖拽和主干连线。" TextWrapping="Wrap" /></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal"><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding CanvasZoomOutCommand}" Content="缩小" /><TextBlock VerticalAlignment="Center" Margin="8,0" Text="{Binding DesignerZoomPercentText}" /><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding CanvasZoomInCommand}" Content="放大" /><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding AutoArrangeCanvasCommand}" Content="自动排布" /><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding MoveStepUpCommand}" Content="上移" /><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding MoveStepDownCommand}" Content="下移" /><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RemoveSelectedStepCommand}" Content="删除节点" /></StackPanel></Grid>
+                            <ScrollViewer x:Name="DesignerCanvasScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="DesignerCanvasScrollViewer_OnScrollChanged">
+                                <Border Background="{StaticResource CanvasGridBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16">
+                                    <Canvas x:Name="DesignerCanvas" Width="2200" Height="1400" AllowDrop="True" Drop="DesignerCanvas_OnDrop">
+                                        <Canvas.LayoutTransform>
+                                            <ScaleTransform ScaleX="{Binding DesignerZoom}" ScaleY="{Binding DesignerZoom}" />
+                                        </Canvas.LayoutTransform>
+                                        <ItemsControl ItemsSource="{Binding DesignerConnections}">
+                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Line X1="{Binding X1}" Y1="{Binding Y1}" X2="{Binding X2}" Y2="{Binding Y2}" Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <ItemsControl ItemsSource="{Binding DesignerNodes}">
+                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                                    <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Width="{Binding Width}" Height="{Binding Height}" Padding="10" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1.5" CornerRadius="14" Tag="{Binding StepId}" PreviewMouseLeftButtonDown="DesignerNode_OnPreviewMouseLeftButtonDown" PreviewMouseMove="DesignerNode_OnPreviewMouseMove" PreviewMouseLeftButtonUp="DesignerNode_OnPreviewMouseLeftButtonUp">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="White" />
+                                                                <Setter Property="BorderBrush" Value="{StaticResource PanelBorderBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                                                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <StackPanel>
+                                                            <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextWrapping="Wrap" />
+                                                            <TextBlock Margin="0,6,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding StepTypeText}" />
+                                                            <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{StaticResource AccentBrush}" Text="{Binding Category}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Canvas>
+                                </Border>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                    <GridSplitter Grid.Column="3" Width="6" Background="{StaticResource PanelBorderBrush}" DragCompleted="DesignerGridSplitter_OnDragCompleted" />
+                    <Border Grid.Column="4" Style="{StaticResource PanelBorderStyle}">
+                        <TabControl>
+                            <TabItem Header="属性">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="10">
+                                        <Expander Header="基础配置" IsExpanded="True">
+                                            <StackPanel Margin="12">
+                                                <TextBlock Style="{StaticResource LabelStyle}" Text="步骤名称" />
+                                                <TextBox Text="{Binding SelectedWorkflowStep.Name, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Style="{StaticResource LabelStyle}" Text="步骤类型" />
+                                                <TextBox IsReadOnly="True" Text="{Binding SelectedWorkflowStep.StepType}" />
+                                                <TextBlock Style="{StaticResource LabelStyle}" Text="超时（毫秒）" />
+                                                <TextBox Text="{Binding SelectedWorkflowStep.TimeoutMs, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Style="{StaticResource LabelStyle}" Text="重试次数" />
+                                                <TextBox Text="{Binding SelectedWorkflowStep.RetryCount, UpdateSourceTrigger=PropertyChanged}" />
+                                                <CheckBox Content="失败后继续执行" IsChecked="{Binding SelectedWorkflowStep.ContinueOnError}" />
+                                            </StackPanel>
+                                        </Expander>
+                                        <TextBlock Margin="0,12,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding EmptyDynamicParametersText}" Visibility="{Binding HasDynamicStepParameters, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=False}" />
+                                        <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding CurrentStepParameterGroups}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Expander Margin="0,0,0,12" Header="{Binding Title}" IsExpanded="True">
+                                                        <ItemsControl Margin="12" ItemsSource="{Binding Parameters}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border Margin="0,0,0,10" Padding="10" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="8">
+                                                                        <ContentControl Content="{Binding}" ContentTemplateSelector="{StaticResource StepParameterEditorTemplateSelector}" />
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Expander>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </TabItem>
+                            <TabItem Header="说明">
+                                <StackPanel Margin="16">
+                                    <TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="节点说明" />
+                                    <TextBlock Margin="0,10,0,0" Text="{Binding SelectedStepDescriptionText}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,18,0,0" Style="{StaticResource LabelStyle}" Text="当前流程" />
+                                    <TextBlock Text="{Binding CurrentWorkflowName}" />
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="流程描述" />
+                                    <TextBlock Text="{Binding CurrentWorkflow.Description}" TextWrapping="Wrap" />
+                                    <TextBlock Style="{StaticResource LabelStyle}" Text="草稿路径" />
+                                    <TextBlock Text="{Binding CurrentWorkflowPathText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </TabItem>
+                            <TabItem Header="调试">
+                                <StackPanel Margin="16">
+                                    <TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="调试辅助" />
+                                    <Button Margin="0,12,0,0" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding OpenElementPickerCommand}" Content="打开页面元素拾取" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RunSelectedStepCommand}" Content="执行当前节点" />
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RunFromSelectedStepCommand}" Content="从当前节点继续执行" />
+                                    <TextBlock Margin="0,16,0,0" Text="{Binding DesignerDebugHintText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </TabItem>
+                        </TabControl>
+                    </Border>
+                </Grid>
+
+                <Grid Visibility="{Binding IsScheduleCenterPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="1.05*" /><ColumnDefinition Width="1.25*" /></Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <Border Style="{StaticResource CardStyle}"><StackPanel><TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="调度状态" /><TextBlock Margin="0,10,0,0" Style="{StaticResource LabelStyle}" Text="状态" /><TextBlock Text="{Binding SchedulerStatusText}" TextWrapping="Wrap" /><TextBlock Style="{StaticResource LabelStyle}" Text="最近刷新" /><TextBlock Text="{Binding LastRefreshDisplayText}" /><TextBlock Style="{StaticResource LabelStyle}" Text="最近错误" /><TextBlock Text="{Binding RecentErrorDisplayText}" TextWrapping="Wrap" /><TextBlock Style="{StaticResource LabelStyle}" Text="发布选择" /><TextBlock Text="{Binding SchedulerSelectionStatusText}" TextWrapping="Wrap" /><StackPanel Margin="0,12,0,0" Orientation="Horizontal"><Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartSchedulerCommand}" Content="启动调度" /><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RunSchedulerRoundCommand}" Content="执行单轮" /><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding StopSchedulerLoopCommand}" Content="停止调度" /></StackPanel></StackPanel></Border>
+                        <Border Style="{StaticResource CardStyle}"><UniformGrid Columns="2"><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="待申请" /><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PendingApplyText}" /></StackPanel><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="待查询" /><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PendingQueryText}" /></StackPanel><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="待审批" /><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PendingApprovalText}" /></StackPanel><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="待恢复" /><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PendingResumeTextValue}" /></StackPanel></UniformGrid></Border>
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource PanelBorderStyle}"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel><TextBlock Style="{StaticResource PageTitleStyle}" Text="已发布流程选择" /><TextBlock Margin="0,4,0,12" Foreground="{StaticResource TextSecondaryBrush}" Text="调度中心只读取发布清单中的本机快照，不读取未发布草稿。" TextWrapping="Wrap" /><TextBlock Style="{StaticResource LabelStyle}" Text="申请流程" /><ComboBox ItemsSource="{Binding ApplyWorkflowOptions}" DisplayMemberPath="DisplayText" SelectedValuePath="WorkflowId" SelectedValue="{Binding ApplyWorkflowIdValue, Mode=TwoWay}" /><TextBlock Style="{StaticResource LabelStyle}" Text="查询流程" /><ComboBox ItemsSource="{Binding QueryWorkflowOptions}" DisplayMemberPath="DisplayText" SelectedValuePath="WorkflowId" SelectedValue="{Binding QueryWorkflowIdValue, Mode=TwoWay}" /><TextBlock Style="{StaticResource LabelStyle}" Text="审批流程" /><ComboBox ItemsSource="{Binding ApprovalWorkflowOptions}" DisplayMemberPath="DisplayText" SelectedValuePath="WorkflowId" SelectedValue="{Binding ApprovalWorkflowIdValue, Mode=TwoWay}" /><CheckBox Content="申请优先" IsChecked="{Binding ApplyPriorityValue}" /><TextBlock Style="{StaticResource LabelStyle}" Text="连续申请上限" /><TextBox Text="{Binding MaxContinuousApplyCountValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /><TextBlock Style="{StaticResource LabelStyle}" Text="主循环间隔（毫秒）" /><TextBox Text="{Binding MainLoopIntervalMsValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /><TextBlock Style="{StaticResource LabelStyle}" Text="无申请时查询间隔（毫秒）" /><TextBox Text="{Binding QueryIntervalWhenNoApplyMsValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /><CheckBox Content="启动时提示恢复未完成业务" IsChecked="{Binding ResumePromptOnStartupValue}" /></StackPanel></ScrollViewer></Border>
+                </Grid>
+                <Grid Visibility="{Binding IsOperationCenterPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="1.05*" /><ColumnDefinition Width="1.3*" /></Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <Border Style="{StaticResource CardStyle}"><StackPanel><TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="运行态面板" /><TextBlock Margin="0,10,0,0" Style="{StaticResource LabelStyle}" Text="当前流程" /><TextBlock Text="{Binding RuntimeState.CurrentWorkflowName}" /><TextBlock Style="{StaticResource LabelStyle}" Text="当前模式" /><TextBlock Text="{Binding CurrentModeDisplayText}" /><TextBlock Style="{StaticResource LabelStyle}" Text="当前步骤" /><TextBlock Text="{Binding CurrentStepDisplayText}" /><TextBlock Style="{StaticResource LabelStyle}" Text="当前窗口标题" /><TextBlock Text="{Binding CurrentWindowDisplayText}" TextWrapping="Wrap" /><TextBlock Style="{StaticResource LabelStyle}" Text="当前页面 URL" /><TextBlock Text="{Binding RuntimeState.CurrentPageUrl}" TextWrapping="Wrap" /><TextBlock Style="{StaticResource LabelStyle}" Text="iframe 层级" /><TextBlock Text="{Binding CurrentFrameDisplayText}" /><TextBlock Style="{StaticResource LabelStyle}" Text="当前处理对象" /><TextBlock Text="{Binding CurrentObjectDisplayText}" TextWrapping="Wrap" /></StackPanel></Border>
+                        <Border Style="{StaticResource CardStyle}"><StackPanel><TextBlock Style="{StaticResource PageTitleStyle}" FontSize="18" Text="统计摘要" /><UniformGrid Columns="2" Margin="0,10,0,0"><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="待申请" /><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PendingApplyText}" /></StackPanel><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="待查询" /><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PendingQueryText}" /></StackPanel><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="今日完成" /><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding CompletedTodayText}" /></StackPanel><StackPanel><TextBlock Style="{StaticResource LabelStyle}" Text="今日失败" /><TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding FailedTodayText}" /></StackPanel></UniformGrid></StackPanel></Border>
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource PanelBorderStyle}">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource PageTitleStyle}" Text="最近执行与错误" />
+                            <ListBox Margin="0,12,0,0" ItemsSource="{Binding RunHistoryItems}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" Padding="12" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding WorkflowName}" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Mode}" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Result}" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding ErrorSummary}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+
+
+                <Grid Visibility="{Binding IsLogCenterPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="0.95*" />
+                        <ColumnDefinition Width="1.05*" />
+                        <ColumnDefinition Width="1.55*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource PanelBorderStyle}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                <TextBlock Style="{StaticResource PageTitleStyle}" Text="日志中心" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="按流程和执行批次查看完整执行日志，失败时可以直接导出文本发给我做诊断。" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,12,0,0" Style="{StaticResource LabelStyle}" Text="流程搜索" />
+                                <TextBox Text="{Binding LogCenterSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="流程类型" />
+                                <ComboBox ItemsSource="{Binding LogCenterFilterOptions}" DisplayMemberPath="DisplayName" SelectedValuePath="Value" SelectedValue="{Binding SelectedLogFilterTypeValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Margin="0,12,0,0" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshLogCenterCommand}" Content="刷新日志目录" />
+                            </StackPanel>
+                            <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding EmptyWorkflowLogsText}" TextWrapping="Wrap" />
+                            <ListBox ItemsSource="{Binding LoggedWorkflowsView}" SelectedItem="{Binding SelectedLogWorkflow}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" Padding="12" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding WorkflowName}" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding WorkflowTypeText}" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding DisplayText}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Column="1" Margin="0,0,12,0" Style="{StaticResource PanelBorderStyle}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                <TextBlock Style="{StaticResource PageTitleStyle}" Text="执行批次" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="先选流程，再选某一次执行批次查看完整步骤日志。" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,12,0,0" Style="{StaticResource LabelStyle}" Text="当前流程" />
+                                <TextBlock Text="{Binding SelectedLogWorkflow.WorkflowName}" FontWeight="SemiBold" />
+                                <TextBlock Style="{StaticResource LabelStyle}" Text="流程类型" />
+                                <TextBlock Text="{Binding SelectedLogWorkflow.WorkflowTypeText}" />
+                            </StackPanel>
+                            <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding EmptyRunLogsText}" TextWrapping="Wrap" />
+                            <ListBox ItemsSource="{Binding WorkflowLogRuns}" SelectedItem="{Binding SelectedWorkflowLogRun}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" Padding="12" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock FontWeight="SemiBold" Text="{Binding RunName}" />
+                                                    <Border Grid.Column="1" Padding="8,3" Background="#EEF3F9" CornerRadius="10">
+                                                        <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Result}" />
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding DisplayText}" TextWrapping="Wrap" />
+                                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Summary}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource PanelBorderStyle}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource PageTitleStyle}" Text="日志详情" />
+                                        <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="右侧展示当前批次的完整文本日志，可直接导出或复制摘要。" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Margin="12,0,0,0" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding CopySelectedLogSummaryCommand}" Content="复制摘要" />
+                                    <Button Grid.Column="2" Margin="12,0,0,0" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ExportSelectedLogCommand}" Content="导出日志" />
+                                </Grid>
+                            </StackPanel>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="12" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Padding="12" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10">
+                                    <TextBox BorderThickness="0" Background="Transparent" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" Text="{Binding SelectedWorkflowLogSummaryText, Mode=OneWay}" />
+                                </Border>
+                                <TextBox Grid.Row="2" FontFamily="Consolas" FontSize="12" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" Background="#FFFDF9" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Text="{Binding SelectedWorkflowLogText, Mode=OneWay}" />
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+
+                <Grid Visibility="{Binding IsLocalTasksPage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="1.05*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource PanelBorderStyle}"><StackPanel><TextBlock Style="{StaticResource PageTitleStyle}" Text="本机业务记录" /><TextBlock Margin="0,4,0,12" Foreground="{StaticResource TextSecondaryBrush}" Text="恢复入口只基于当前机器上的活动 XML 记录。" TextWrapping="Wrap" /><TextBlock Style="{StaticResource LabelStyle}" Text="待恢复摘要" /><TextBlock Text="{Binding PendingBusinessResumeText}" TextWrapping="Wrap" /><TextBlock Margin="0,12,0,0" Style="{StaticResource LabelStyle}" Text="业务状态文件" /><TextBlock Text="{Binding BusinessStateFilePath}" TextWrapping="Wrap" /><TextBlock Margin="0,12,0,0" Style="{StaticResource LabelStyle}" Text="调度状态文件" /><TextBlock Text="{Binding SchedulerStateFilePath}" TextWrapping="Wrap" /><StackPanel Margin="0,16,0,0" Orientation="Horizontal"><Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyPendingBusinessResumeCommand}" Content="恢复定位" /><Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ClearPendingBusinessResumeCommand}" Content="清除记录" /></StackPanel></StackPanel></Border>
+                    <Border Grid.Column="1" Style="{StaticResource PanelBorderStyle}"><StackPanel><TextBlock Style="{StaticResource PageTitleStyle}" Text="上传与最近执行" /><TextBlock Margin="0,12,0,0" Style="{StaticResource LabelStyle}" Text="当前处理对象" /><TextBlock Text="{Binding CurrentObjectDisplayText}" TextWrapping="Wrap" /><TextBlock Style="{StaticResource LabelStyle}" Text="最近错误" /><TextBlock Text="{Binding RecentErrorDisplayText}" TextWrapping="Wrap" /><TextBlock Style="{StaticResource LabelStyle}" Text="建议动作" /><TextBlock Text="{Binding SuggestedActionText}" TextWrapping="Wrap" /><ListBox Margin="0,12,0,0" ItemsSource="{Binding RunHistoryItems}"><ListBox.ItemTemplate><DataTemplate><Border Margin="0,0,0,8" Padding="10" Background="{StaticResource PanelSubtleBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10"><StackPanel><TextBlock FontWeight="SemiBold" Text="{Binding WorkflowName}" /><TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Result}" /><TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding ErrorSummary}" TextWrapping="Wrap" /></StackPanel></Border></DataTemplate></ListBox.ItemTemplate></ListBox></StackPanel></Border>
+                </Grid>
+            </Grid>
         </Grid>
 
-        <Border Grid.Row="2"
-                Margin="16,0,16,16"
-                Padding="12"
-                Background="White"
-                BorderBrush="#D9E0E7"
-                BorderThickness="1"
-                CornerRadius="10">
-            <DockPanel LastChildFill="True">
-                <TextBlock DockPanel.Dock="Top"
-                           Margin="0,0,0,4"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           Text="执行日志" />
-                <TextBlock DockPanel.Dock="Top"
-                           Margin="0,0,0,12"
-                           Foreground="#5B6470"
-                           Text="双击日志行可复制详细内容，便于粘贴到工单或聊天窗口中排查问题。" />
-
-                <DataGrid x:Name="LogsDataGrid"
-                          ItemsSource="{Binding Logs}"
-                          AutoGenerateColumns="False"
-                          CanUserAddRows="False"
-                          HeadersVisibility="Column"
-                          IsReadOnly="True"
-                          MouseDoubleClick="LogsDataGrid_OnMouseDoubleClick">
+        <GridSplitter Grid.Row="2" Height="6" Background="{StaticResource PanelBorderBrush}" DragCompleted="LogDrawerSplitter_OnDragCompleted" />
+        <Border Grid.Row="3" Margin="16,0,16,16" Style="{StaticResource PanelBorderStyle}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock VerticalAlignment="Center" Style="{StaticResource PageTitleStyle}" FontSize="18" Text="日志抽屉" />
+                    <Button Margin="12,0,0,0" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ToggleLogDrawerCommand}" Content="{Binding LogToggleText}" />
+                </StackPanel>
+                <DataGrid x:Name="LogsDataGrid" ItemsSource="{Binding Logs}" AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column" IsReadOnly="True" MouseDoubleClick="LogsDataGrid_OnMouseDoubleClick">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Width="170"
-                                            Binding="{Binding Timestamp, StringFormat=yyyy-MM-dd HH:mm:ss}"
-                                            Header="时间" />
-                        <DataGridTextColumn Width="90"
-                                            Binding="{Binding Level}"
-                                            Header="级别" />
-                        <DataGridTextColumn Width="160"
-                                            Binding="{Binding StepName}"
-                                            Header="步骤" />
-                        <DataGridTextColumn Width="*"
-                                            Binding="{Binding Message}"
-                                            Header="消息" />
-                        <DataGridTextColumn Width="260"
-                                            Binding="{Binding ScreenshotPath}"
-                                            Header="截图路径" />
+                        <DataGridTextColumn Width="170" Header="时间" Binding="{Binding Timestamp, StringFormat=yyyy-MM-dd HH:mm:ss}" />
+                        <DataGridTextColumn Width="90" Header="级别" Binding="{Binding Level}" />
+                        <DataGridTextColumn Width="180" Header="步骤" Binding="{Binding StepName}" />
+                        <DataGridTextColumn Width="*" Header="消息" Binding="{Binding Message}" />
+                        <DataGridTextColumn Width="260" Header="截图路径" Binding="{Binding ScreenshotPath}" />
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
         </Border>
     </Grid>
 </Window>
+
+
+
+
+

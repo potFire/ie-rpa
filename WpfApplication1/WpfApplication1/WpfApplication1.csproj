@@ -42,6 +42,7 @@
         <Reference Include="System.Web.Extensions" />
         <Reference Include="System.Windows.Forms" />
         <Reference Include="System.Xml"/>
+        <Reference Include="System.Xml.Linq"/>
         <Reference Include="Interop.mshtml">
             <HintPath>Lib\Interop.mshtml.dll</HintPath>
         </Reference>
@@ -64,7 +65,23 @@
             <Generator>MSBuild:Compile</Generator>
             <SubType>Designer</SubType>
         </Page>
+        <Page Include="ElementPickerLoadingWindow.xaml">
+            <Generator>MSBuild:Compile</Generator>
+            <SubType>Designer</SubType>
+        </Page>
+        <Page Include="EmployeeIdDialog.xaml">
+            <Generator>MSBuild:Compile</Generator>
+            <SubType>Designer</SubType>
+        </Page>
+        <Page Include="WorkflowCreateDialog.xaml">
+            <Generator>MSBuild:Compile</Generator>
+            <SubType>Designer</SubType>
+        </Page>
         <Page Include="MainWindow.xaml">
+            <Generator>MSBuild:Compile</Generator>
+            <SubType>Designer</SubType>
+        </Page>
+        <Page Include="Styles\AppTheme.xaml">
             <Generator>MSBuild:Compile</Generator>
             <SubType>Designer</SubType>
         </Page>
@@ -76,10 +93,23 @@
             <DependentUpon>ElementPickerWindow.xaml</DependentUpon>
             <SubType>Code</SubType>
         </Compile>
+        <Compile Include="ElementPickerLoadingWindow.xaml.cs">
+            <DependentUpon>ElementPickerLoadingWindow.xaml</DependentUpon>
+            <SubType>Code</SubType>
+        </Compile>
+        <Compile Include="EmployeeIdDialog.xaml.cs">
+            <DependentUpon>EmployeeIdDialog.xaml</DependentUpon>
+            <SubType>Code</SubType>
+        </Compile>
+        <Compile Include="WorkflowCreateDialog.xaml.cs">
+            <DependentUpon>WorkflowCreateDialog.xaml</DependentUpon>
+            <SubType>Code</SubType>
+        </Compile>
         <Compile Include="MainWindow.xaml.cs">
             <DependentUpon>MainWindow.xaml</DependentUpon>
             <SubType>Code</SubType>
         </Compile>
+        <Compile Include="StepParameterEditorTemplateSelector.cs" />
         <Compile Include="Commands\AsyncRelayCommand.cs" />
         <Compile Include="Commands\RelayCommand.cs" />
         <Compile Include="Automation\IE\IeBrowserService.cs" />
@@ -91,46 +121,114 @@
         <Compile Include="Common\BindableBase.cs" />
         <Compile Include="Enums\ExecutionStatus.cs" />
         <Compile Include="Enums\LogLevel.cs" />
+        <Compile Include="Enums\BusinessStateStage.cs" />
+        <Compile Include="Enums\ShellPage.cs" />
         <Compile Include="Enums\StepType.cs" />
+        <Compile Include="Enums\WorkflowType.cs" />
+        <Compile Include="Models\ApplicationState.cs" />
+        <Compile Include="Models\BusinessStateRecord.cs" />
+        <Compile Include="Models\CanvasConnection.cs" />
+        <Compile Include="Models\CanvasLayout.cs" />
+        <Compile Include="Models\CanvasNodeLayout.cs" />
         <Compile Include="Models\ElementSummary.cs" />
+        <Compile Include="Models\HttpFileUploadResult.cs" />
         <Compile Include="Models\ExecutionLogEntry.cs" />
+        <Compile Include="Models\WorkflowLogRunItem.cs" />
+        <Compile Include="Models\WorkflowLogFilter.cs" />
+        <Compile Include="Models\WorkflowLogWorkflowItem.cs" />
+        <Compile Include="Models\NavigationItem.cs" />
+        <Compile Include="Models\LocalSchedulerState.cs" />
+        <Compile Include="Models\RunHistoryItem.cs" />
+        <Compile Include="Models\RuntimeStateSnapshot.cs" />
+        <Compile Include="Models\SchedulerExecutionContext.cs" />
+        <Compile Include="Models\SchedulerSettings.cs" />
         <Compile Include="Models\SelectorDefinition.cs" />
         <Compile Include="Models\StepExecutionResult.cs" />
+        <Compile Include="Models\TaskSummarySnapshot.cs" />
         <Compile Include="Models\StepParameterBag.cs" />
+        <Compile Include="Models\StepParameterEditorKind.cs" />
+        <Compile Include="Models\StepParameterSection.cs" />
+        <Compile Include="Models\StepParameterOption.cs" />
+        <Compile Include="Models\StepParameterDefinition.cs" />
+        <Compile Include="Models\WorkflowCreateRequest.cs" />
+        <Compile Include="Models\WorkflowListItem.cs" />
+        <Compile Include="Models\PublishedWorkflowRecord.cs" />
         <Compile Include="Models\ToolboxStepDefinition.cs" />
         <Compile Include="Models\WorkflowDefinition.cs" />
         <Compile Include="Models\WorkflowStep.cs" />
         <Compile Include="Services\DesktopInteractionService.cs" />
+        <Compile Include="Services\HttpFileUploadService.cs" />
+        <Compile Include="Services\IApplicationStateStore.cs" />
+        <Compile Include="Services\IBusinessStateStore.cs" />
         <Compile Include="Services\IDesktopInteractionService.cs" />
+        <Compile Include="Services\IHttpFileUploadService.cs" />
         <Compile Include="Services\ILogService.cs" />
+        <Compile Include="Services\IWorkflowLogService.cs" />
+        <Compile Include="Services\IIntegratedSchedulerService.cs" />
+        <Compile Include="Services\IPublishedWorkflowStore.cs" />
         <Compile Include="Services\InMemoryLogService.cs" />
+        <Compile Include="Services\ISchedulerStateStore.cs" />
+        <Compile Include="Services\IStepParameterDefinitionProvider.cs" />
+        <Compile Include="Services\IWorkflowCatalogService.cs" />
+        <Compile Include="Services\IWorkflowTemplateFactory.cs" />
+        <Compile Include="Services\StepParameterDefinitionProvider.cs" />
         <Compile Include="Services\IWorkflowFileService.cs" />
         <Compile Include="Services\IVariableResolver.cs" />
         <Compile Include="Services\VariableResolver.cs" />
+        <Compile Include="Services\XmlSchedulerStateStore.cs" />
+        <Compile Include="Services\IntegratedSchedulerService.cs" />
+        <Compile Include="Services\XmlApplicationStateStore.cs" />
+        <Compile Include="Services\XmlBusinessStateStore.cs" />
+        <Compile Include="Services\XmlPublishedWorkflowStore.cs" />
+        <Compile Include="Services\WorkflowCatalogService.cs" />
         <Compile Include="Services\WorkflowFileService.cs" />
+        <Compile Include="Services\WorkflowLogService.cs" />
+        <Compile Include="Services\WorkflowTemplateFactory.cs" />
         <Compile Include="Selectors\SelectorParser.cs" />
         <Compile Include="StepExecutors\AttachIeStepExecutor.cs" />
+        <Compile Include="StepExecutors\BusinessStateSupport.cs" />
         <Compile Include="StepExecutors\ClickElementStepExecutor.cs" />
+        <Compile Include="StepExecutors\CompositeIeStepHelper.cs" />
         <Compile Include="StepExecutors\ConditionStepExecutor.cs" />
         <Compile Include="StepExecutors\DelayStepExecutor.cs" />
         <Compile Include="StepExecutors\ExecuteScriptStepExecutor.cs" />
+        <Compile Include="StepExecutors\ClickAndSwitchWindowStepExecutor.cs" />
+        <Compile Include="StepExecutors\HttpUploadFileStepExecutor.cs" />
+        <Compile Include="StepExecutors\HttpGetDataStepExecutor.cs" />
         <Compile Include="StepExecutors\HandleAlertStepExecutor.cs" />
         <Compile Include="StepExecutors\InputTextStepExecutor.cs" />
+        <Compile Include="StepExecutors\PageListLoopStepExecutor.cs" />
         <Compile Include="StepExecutors\LaunchIeStepExecutor.cs" />
+        <Compile Include="StepExecutors\LoopEndStepExecutor.cs" />
+        <Compile Include="StepExecutors\LoopStartStepExecutor.cs" />
         <Compile Include="StepExecutors\LoopStepExecutor.cs" />
         <Compile Include="StepExecutors\NavigateStepExecutor.cs" />
+        <Compile Include="StepExecutors\QueryAndExportReportStepExecutor.cs" />
         <Compile Include="StepExecutors\ReadTextStepExecutor.cs" />
         <Compile Include="StepExecutors\SelectOptionStepExecutor.cs" />
         <Compile Include="StepExecutors\ScreenshotStepExecutor.cs" />
         <Compile Include="StepExecutors\SetVariableStepExecutor.cs" />
         <Compile Include="StepExecutors\SwitchFrameStepExecutor.cs" />
         <Compile Include="StepExecutors\SwitchWindowStepExecutor.cs" />
+        <Compile Include="StepExecutors\UpdateBusinessStateStepExecutor.cs" />
         <Compile Include="StepExecutors\UploadFileStepExecutor.cs" />
         <Compile Include="StepExecutors\WaitDownloadStepExecutor.cs" />
+        <Compile Include="StepExecutors\WaitForElementStepExecutor.cs" />
         <Compile Include="StepExecutors\WaitPageReadyStepExecutor.cs" />
         <Compile Include="StepExecutors\WriteLogStepExecutor.cs" />
+        <Compile Include="ViewModels\DesignerCanvasConnectionViewModel.cs" />
+        <Compile Include="ViewModels\DesignerCanvasNodeViewModel.cs" />
         <Compile Include="ViewModels\MainWindowViewModel.cs" />
+        <Compile Include="ViewModels\MainWindowViewModel.ExtendedEditors.cs" />
+        <Compile Include="ViewModels\MainWindowViewModel.DynamicParameters.cs" />
+        <Compile Include="ViewModels\StepParameterGroupViewModel.cs" />
+        <Compile Include="ViewModels\StepParameterViewModel.cs" />
+        <Compile Include="ViewModels\MainWindowViewModel.ShellScheduler.cs" />
+        <Compile Include="ViewModels\MainWindowViewModel.WorkflowManagement.cs" />
+        <Compile Include="ViewModels\MainWindowViewModel.LogCenter.cs" />
         <Compile Include="Workflow\ExecutionContext.cs" />
+        <Compile Include="Workflow\LoopPairInfo.cs" />
+        <Compile Include="Workflow\LoopRuntimeState.cs" />
         <Compile Include="Workflow\IExecutionContext.cs" />
         <Compile Include="Workflow\IStepExecutor.cs" />
         <Compile Include="Workflow\IWorkflowRunner.cs" />
@@ -154,8 +252,31 @@
     <ItemGroup>
         <None Include="App.config"/>
     </ItemGroup>
+    <ItemGroup>
+      <Content Include="task\20260325.md" />
+      <Content Include="task\260328\IE_RPA_Codex_鎻愮ず璇嶆枃妗V1.0.md" />
+      <Content Include="task\260328\IE_RPA_鍔熻兘璁捐鏂囨。_V1.0.md" />
+      <Content Include="task\260328\楠屾敹娓呭崟_V1.0.md" />
+      <Content Include="Workflows\Examples\申请流程示例.ierpa.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Workflows\Examples\审批流程示例.ierpa.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Workflows\Examples\查询流程示例.ierpa.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
     <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets"/>
 </Project>
+
+
+
+
+
+
+
+
 
 
 

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using WpfApplication1.Automation.IE;
 using WpfApplication1.Enums;
@@ -49,19 +51,22 @@ namespace WpfApplication1.StepExecutors
 
             var waitForNewWindow = ParseBoolean(rawWaitForNewWindow, false);
             var excludeCurrent = ParseBoolean(rawExcludeCurrent, true);
-            var currentHandle = currentPage != null ? currentPage.WindowHandle : 0;
             var startedAt = DateTime.UtcNow;
+            IList<IIePage> lastPages = new List<IIePage>();
 
             while ((DateTime.UtcNow - startedAt).TotalMilliseconds < step.TimeoutMs)
             {
                 var pages = _browserService.GetAllPages();
-                var matched = FilterPages(pages, currentHandle, excludeCurrent, titleContains, urlContains);
+                lastPages = pages;
+                var matched = FilterPages(pages, currentPage, excludeCurrent, titleContains, urlContains);
                 var target = PickTargetWindow(matched, rawMode, rawIndex);
                 if (target != null)
                 {
+                    target.Activate();
+                    await target.WaitForReadyAsync(Math.Min(step.TimeoutMs, 5000));
                     context.CurrentPage = target;
                     context.CurrentBrowser = target;
-                    return StepExecutionResult.Success("已切换到窗口：" + SafeWindowLabel(target));
+                    return StepExecutionResult.Success("已切换到窗口：" + DescribePage(target));
                 }
 
                 if (!waitForNewWindow)
@@ -72,12 +77,15 @@ namespace WpfApplication1.StepExecutors
                 await Task.Delay(200);
             }
 
-            return StepExecutionResult.Failure("未找到匹配的 IE 窗口。");
+            return StepExecutionResult.Failure(
+                "未找到匹配的 IE 窗口。标题包含=" + SafeValue(titleContains)
+                + "，地址包含=" + SafeValue(urlContains)
+                + "。候选窗口：" + DescribeCandidates(lastPages, currentPage));
         }
 
         private static List<IIePage> FilterPages(
             IList<IIePage> pages,
-            int currentHandle,
+            IIePage currentPage,
             bool excludeCurrent,
             string titleContains,
             string urlContains)
@@ -90,19 +98,19 @@ namespace WpfApplication1.StepExecutors
                     continue;
                 }
 
-                if (excludeCurrent && currentHandle != 0 && page.WindowHandle == currentHandle)
+                if (excludeCurrent && IsSamePage(page, currentPage))
                 {
                     continue;
                 }
 
                 if (!string.IsNullOrWhiteSpace(titleContains)
-                    && (page.Title ?? string.Empty).IndexOf(titleContains, StringComparison.OrdinalIgnoreCase) < 0)
+                    && !ContainsIgnoreCase(page.Title, titleContains))
                 {
                     continue;
                 }
 
                 if (!string.IsNullOrWhiteSpace(urlContains)
-                    && (page.Url ?? string.Empty).IndexOf(urlContains, StringComparison.OrdinalIgnoreCase) < 0)
+                    && !MatchesUrlHint(page, urlContains))
                 {
                     continue;
                 }
@@ -120,7 +128,6 @@ namespace WpfApplication1.StepExecutors
                 return null;
             }
 
-            // 默认选择最后一个窗口，更贴近“点击后弹出新窗口”的业务习惯。
             if (string.IsNullOrWhiteSpace(mode) || string.Equals(mode, "last", StringComparison.OrdinalIgnoreCase))
             {
                 return pages[pages.Count - 1];
@@ -143,25 +150,121 @@ namespace WpfApplication1.StepExecutors
             return pages[pages.Count - 1];
         }
 
+        private static bool MatchesUrlHint(IIePage page, string hint)
+        {
+            if (page == null)
+            {
+                return false;
+            }
+
+            if (ContainsIgnoreCase(page.Url, hint) || ContainsIgnoreCase(page.Title, hint))
+            {
+                return true;
+            }
+
+            var url = page.Url ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return false;
+            }
+
+            return BuildUrlVariants(url).Any(variant => ContainsIgnoreCase(variant, hint));
+        }
+
+        private static IEnumerable<string> BuildUrlVariants(string url)
+        {
+            yield return url ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                yield break;
+            }
+
+            string decoded;
+            try
+            {
+                decoded = Uri.UnescapeDataString(url.Replace("+", "%20"));
+            }
+            catch
+            {
+                decoded = string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(decoded) && !string.Equals(decoded, url, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return decoded;
+            }
+
+            var webDecoded = WebUtility.UrlDecode(url);
+            if (!string.IsNullOrWhiteSpace(webDecoded)
+                && !string.Equals(webDecoded, url, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(webDecoded, decoded, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return webDecoded;
+            }
+        }
+
+        private static bool IsSamePage(IIePage left, IIePage right)
+        {
+            if (left == null || right == null)
+            {
+                return false;
+            }
+
+            var sameTitle = string.Equals(left.Title ?? string.Empty, right.Title ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            var sameUrl = string.Equals(left.Url ?? string.Empty, right.Url ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            if (!sameTitle || !sameUrl)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(left.BrowserIdentityKey)
+                && !string.IsNullOrWhiteSpace(right.BrowserIdentityKey))
+            {
+                return string.Equals(left.BrowserIdentityKey, right.BrowserIdentityKey, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return left.WindowHandle == right.WindowHandle;
+        }
+
+        private static string DescribeCandidates(IList<IIePage> pages, IIePage currentPage)
+        {
+            if (pages == null || pages.Count == 0)
+            {
+                return "(none)";
+            }
+
+            var candidates = pages
+                .Where(page => page != null)
+                .Where(page => !IsSamePage(page, currentPage))
+                .Take(5)
+                .Select(DescribePage)
+                .ToArray();
+            return candidates.Length == 0 ? "(none)" : string.Join(" | ", candidates);
+        }
+
+        private static bool ContainsIgnoreCase(string source, string target)
+        {
+            return (source ?? string.Empty).IndexOf(target ?? string.Empty, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         private static bool ParseBoolean(string raw, bool defaultValue)
         {
             bool parsed;
             return bool.TryParse(raw, out parsed) ? parsed : defaultValue;
         }
 
-        private static string SafeWindowLabel(IIePage page)
+        private static string DescribePage(IIePage page)
         {
-            if (page == null)
-            {
-                return string.Empty;
-            }
+            return string.Format("Handle={0}, Title={1}, Url={2}",
+                page != null ? page.WindowHandle : 0,
+                page != null ? SafeValue(page.Title) : "(null)",
+                page != null ? SafeValue(page.Url) : "(null)");
+        }
 
-            if (!string.IsNullOrWhiteSpace(page.Title))
-            {
-                return page.Title;
-            }
-
-            return page.Url ?? string.Empty;
+        private static string SafeValue(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "(empty)" : value;
         }
     }
 }

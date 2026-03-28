@@ -2,10 +2,14 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Windows.Media;
+using System.Runtime.InteropServices;
 using WpfApplication1.Automation.IE;
+using WpfApplication1.Enums;
 using WpfApplication1.Models;
 using WpfApplication1.Selectors;
 
@@ -19,20 +23,31 @@ namespace WpfApplication1
         private readonly ObservableCollection<ElementSummary> _elements;
         private readonly List<ElementSummary> _allElements;
         private readonly Action<string> _applySelectorAction;
+        private readonly Action<LogLevel, string> _traceLogAction;
+        private readonly bool _hideWindowDuringAutoPick;
+        private readonly List<IIePage> _pickingPages;
+        private readonly Dictionary<int, string> _lastLoggedStates;
+        private readonly HashSet<int> _loggedPollErrors;
         private DispatcherTimer _pickPollTimer;
-        private IIePage _pickingPage;
+        private TaskCompletionSource<bool> _autoPickStartedSource;
 
-        public ElementPickerWindow(Action<string> applySelectorAction = null)
+        public ElementPickerWindow(Action<string> applySelectorAction = null, bool autoStartPicking = false, bool hideWindowDuringAutoPick = false, Action<LogLevel, string> traceLogAction = null)
         {
             InitializeComponent();
             _browserService = new IeBrowserService();
             _pages = new ObservableCollection<PageItem>();
             _elements = new ObservableCollection<ElementSummary>();
             _allElements = new List<ElementSummary>();
+            _pickingPages = new List<IIePage>();
+            _lastLoggedStates = new Dictionary<int, string>();
+            _loggedPollErrors = new HashSet<int>();
             _applySelectorAction = applySelectorAction;
+            _traceLogAction = traceLogAction;
+            _hideWindowDuringAutoPick = hideWindowDuringAutoPick;
             PagesComboBox.ItemsSource = _pages;
             ElementsDataGrid.ItemsSource = _elements;
             Closed += OnClosed;
+            ApplyWindowMode();
             LoadPages();
         }
 
@@ -40,11 +55,6 @@ namespace WpfApplication1
         {
             StopPickSession();
             LoadPages();
-        }
-
-        private void PickButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            StartPickSession();
         }
 
         private void PagesComboBox_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -85,15 +95,18 @@ namespace WpfApplication1
             try
             {
                 pages = _browserService.GetAllPages();
+                Trace(LogLevel.Info, "枚举到 " + pages.Count + " 个 IE 页面。");
             }
             catch (Exception ex)
             {
+                Trace(LogLevel.Error, "枚举 IE 页面失败：" + ex.Message);
                 MessageBox.Show(this, ex.Message, "Element Picker", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             foreach (var page in pages)
             {
+                Trace(LogLevel.Info, "发现页面：" + DescribePage(page));
                 _pages.Add(new PageItem
                 {
                     Page = page,
@@ -104,11 +117,13 @@ namespace WpfApplication1
             if (_pages.Count > 0)
             {
                 PagesComboBox.SelectedIndex = 0;
+                Trace(LogLevel.Info, "默认选中页面：" + DescribePage(_pages[0].Page));
             }
             else
             {
                 _allElements.Clear();
                 _elements.Clear();
+                Trace(LogLevel.Warning, "当前没有可用于拾取的 IE 页面。");
             }
         }
 
@@ -185,10 +200,22 @@ namespace WpfApplication1
 
         private void StartPickSession()
         {
-            var pageItem = PagesComboBox.SelectedItem as PageItem;
-            if (pageItem == null || pageItem.Page == null)
+            var pageItems = ResolvePickPageItems();
+            Trace(LogLevel.Info, "本次准备注入拾取脚本的页面数：" + pageItems.Count);
+            foreach (var pageItem in pageItems)
             {
+                Trace(LogLevel.Info, "候选拾取页面：" + DescribePage(pageItem.Page));
+            }
+
+            if (pageItems.Count == 0)
+            {
+                Trace(LogLevel.Warning, "未找到任何可拾取的 IE 页面，启动中止。");
                 MessageBox.Show(this, "请先选择一个已经打开的 IE 页面。", "Element Picker", MessageBoxButton.OK, MessageBoxImage.Information);
+                SignalAutoPickStarted(false);
+                if (IsHiddenAutoPickMode)
+                {
+                    Close();
+                }
                 return;
             }
 
@@ -196,66 +223,266 @@ namespace WpfApplication1
 
             try
             {
-                pageItem.Page.ExecuteScript(BuildPickScript());
-                _pickingPage = pageItem.Page;
+                _pickingPages.Clear();
+                _lastLoggedStates.Clear();
+                _loggedPollErrors.Clear();
+                foreach (var pageItem in pageItems)
+                {
+                    try
+                    {
+                        pageItem.Page.ExecuteScript(BuildPickScript());
+                        _pickingPages.Add(pageItem.Page);
+                        Trace(LogLevel.Info, "已注入拾取脚本：" + DescribePage(pageItem.Page));
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace(LogLevel.Warning, "注入拾取脚本失败：" + DescribePage(pageItem.Page) + "，原因：" + ex.Message);
+                    }
+                }
+
+                if (_pickingPages.Count == 0)
+                {
+                    throw new InvalidOperationException("没有可用的 IE 页面可供拾取。");
+                }
+
                 _pickPollTimer = new DispatcherTimer();
                 _pickPollTimer.Interval = TimeSpan.FromMilliseconds(PickPollIntervalMs);
                 _pickPollTimer.Tick += PickPollTimer_OnTick;
                 _pickPollTimer.Start();
+                SignalAutoPickStarted(true);
+                Trace(LogLevel.Info, "页面拾取轮询已启动，当前挂载页面数：" + _pickingPages.Count);
 
-                MessageBox.Show(this,
-                    "请切换到目标 IE 页面，直接点击要操作的元素。\r\n程序会自动计算 XPath；按 Esc 可以取消拾取。",
-                    "开始拾取",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                WindowState = WindowState.Minimized;
+                if (!IsHiddenAutoPickMode)
+                {
+                    MessageBox.Show(this,
+                        "请切换到目标 IE 页面，直接点击要操作的元素。\r\n程序会自动计算 XPath；按 Esc 可以取消拾取。",
+                        "开始拾取",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    WindowState = WindowState.Minimized;
+                }
             }
             catch (Exception ex)
             {
                 StopPickSession();
+                SignalAutoPickStarted(false);
+                Trace(LogLevel.Error, "启动页面拾取失败：" + ex.Message);
                 MessageBox.Show(this, "无法启动页面拾取：" + ex.Message, "Element Picker", MessageBoxButton.OK, MessageBoxImage.Warning);
+                if (IsHiddenAutoPickMode)
+                {
+                    Close();
+                }
             }
+        }
+
+        private List<PageItem> ResolvePickPageItems()
+        {
+            var selectedItem = PagesComboBox.SelectedItem as PageItem;
+            if (!IsHiddenAutoPickMode)
+            {
+                if (selectedItem != null && selectedItem.Page != null)
+                {
+                    return new List<PageItem> { selectedItem };
+                }
+
+                return new List<PageItem>();
+            }
+
+            var result = new List<PageItem>();
+            var foregroundPage = ResolveForegroundPageItem();
+            if (foregroundPage != null)
+            {
+                PagesComboBox.SelectedItem = foregroundPage;
+                result.Add(foregroundPage);
+                Trace(LogLevel.Info, "前台页面命中：" + DescribePage(foregroundPage.Page));
+            }
+            else
+            {
+                Trace(LogLevel.Warning, "当前前台窗口没有命中可识别的 IE 页面。");
+            }
+
+            foreach (var page in ResolveVisiblePageItemsByZOrder())
+            {
+                if (!result.Any(item => item.Page.WindowHandle == page.Page.WindowHandle))
+                {
+                    result.Add(page);
+                }
+            }
+
+            if (selectedItem != null && selectedItem.Page != null
+                && !result.Any(item => item.Page.WindowHandle == selectedItem.Page.WindowHandle))
+            {
+                result.Add(selectedItem);
+            }
+
+            foreach (var page in _pages.Where(item => item != null && item.Page != null))
+            {
+                if (!result.Any(item => item.Page.WindowHandle == page.Page.WindowHandle))
+                {
+                    result.Add(page);
+                }
+            }
+
+            if (result.Count == 0)
+            {
+                var lastPage = _pages.LastOrDefault(item => item != null && item.Page != null);
+                if (lastPage != null)
+                {
+                    result.Add(lastPage);
+                }
+            }
+
+            return result;
+        }
+
+        private PageItem ResolveForegroundPageItem()
+        {
+            var foregroundHandle = NormalizeWindowHandle(GetForegroundWindow());
+            if (foregroundHandle == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            return _pages.FirstOrDefault(item =>
+                item != null
+                && item.Page != null
+                && NormalizeWindowHandle(new IntPtr(item.Page.WindowHandle)) == foregroundHandle);
+        }
+
+        private IEnumerable<PageItem> ResolveVisiblePageItemsByZOrder()
+        {
+            return _pages
+                .Where(item => item != null && item.Page != null)
+                .Select(item => new
+                {
+                    Item = item,
+                    WindowHandle = NormalizeWindowHandle(new IntPtr(item.Page.WindowHandle))
+                })
+                .Where(entry => entry.WindowHandle != IntPtr.Zero && IsWindowVisible(entry.WindowHandle))
+                .OrderBy(entry => GetWindowZOrder(entry.WindowHandle))
+                .Select(entry => entry.Item)
+                .ToList();
+        }
+
+        private static int GetWindowZOrder(IntPtr windowHandle)
+        {
+            if (windowHandle == IntPtr.Zero)
+            {
+                return int.MaxValue;
+            }
+
+            var rank = 0;
+            for (var current = GetTopWindow(IntPtr.Zero); current != IntPtr.Zero; current = GetWindow(current, GwHwndNext))
+            {
+                if (NormalizeWindowHandle(current) == windowHandle)
+                {
+                    return rank;
+                }
+
+                rank++;
+            }
+
+            return int.MaxValue;
+        }
+
+        private static IntPtr NormalizeWindowHandle(IntPtr windowHandle)
+        {
+            if (windowHandle == IntPtr.Zero)
+            {
+                return IntPtr.Zero;
+            }
+
+            var rootHandle = GetAncestor(windowHandle, GaRoot);
+            return rootHandle != IntPtr.Zero ? rootHandle : windowHandle;
         }
 
         private void PickPollTimer_OnTick(object sender, EventArgs e)
         {
-            if (_pickingPage == null)
+            if (_pickingPages.Count == 0)
             {
+                Trace(LogLevel.Warning, "轮询时发现没有挂载中的拾取页面，会话结束。");
                 StopPickSession();
                 return;
             }
 
+            var hasAlivePage = false;
             try
             {
-                var state = _pickingPage.EvaluateScript("window.__ieRpaPickerState || ''");
-                if (string.Equals(state, "picked", StringComparison.OrdinalIgnoreCase))
+                foreach (var page in _pickingPages.ToList())
                 {
-                    var picked = new ElementSummary
+                    string state;
+                    try
                     {
-                        TagName = _pickingPage.EvaluateScript("window.__ieRpaPickedTag || ''"),
-                        Id = _pickingPage.EvaluateScript("window.__ieRpaPickedId || ''"),
-                        Name = _pickingPage.EvaluateScript("window.__ieRpaPickedName || ''"),
-                        Text = _pickingPage.EvaluateScript("window.__ieRpaPickedText || ''"),
-                        Selector = _pickingPage.EvaluateScript("window.__ieRpaPickedSelector || ''")
-                    };
+                        state = page.EvaluateScript("window.__ieRpaPickerState || ''");
+                        LogStateIfChanged(page, state);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogPollError(page, ex);
+                        continue;
+                    }
 
-                    StopPickSession();
-                    RestorePickerWindow();
-                    AddOrSelectPickedElement(picked);
-                    ApplySelectorAndClose(picked.Selector);
-                    return;
+                    hasAlivePage = true;
+                    if (string.Equals(state, "picked", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var picked = new ElementSummary
+                        {
+                            TagName = page.EvaluateScript("window.__ieRpaPickedTag || ''"),
+                            Id = page.EvaluateScript("window.__ieRpaPickedId || ''"),
+                            Name = page.EvaluateScript("window.__ieRpaPickedName || ''"),
+                            Text = page.EvaluateScript("window.__ieRpaPickedText || ''"),
+                            Selector = page.EvaluateScript("window.__ieRpaPickedSelector || ''")
+                        };
+
+                        Trace(LogLevel.Info, "页面已拾取成功：" + DescribePage(page) + "，Selector=" + (picked.Selector ?? string.Empty));
+                        StopPickSession();
+                        if (!IsHiddenAutoPickMode)
+                        {
+                            RestorePickerWindow();
+                            AddOrSelectPickedElement(picked);
+                        }
+                        ApplySelectorAndClose(picked.Selector);
+                        return;
+                    }
+
+                    if (string.Equals(state, "cancelled", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Trace(LogLevel.Warning, "页面拾取被取消：" + DescribePage(page));
+                        StopPickSession();
+                        if (!IsHiddenAutoPickMode)
+                        {
+                            RestorePickerWindow();
+                        }
+                        else
+                        {
+                            Close();
+                        }
+                        return;
+                    }
                 }
 
-                if (string.Equals(state, "cancelled", StringComparison.OrdinalIgnoreCase))
+                if (!hasAlivePage)
                 {
+                    Trace(LogLevel.Warning, "所有挂载页面都无法返回拾取状态，会话关闭。");
                     StopPickSession();
-                    RestorePickerWindow();
+                    if (IsHiddenAutoPickMode)
+                    {
+                        Close();
+                    }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Trace(LogLevel.Error, "轮询拾取状态时发生异常：" + ex.Message);
                 StopPickSession();
-                RestorePickerWindow();
+                if (!IsHiddenAutoPickMode)
+                {
+                    RestorePickerWindow();
+                }
+                else
+                {
+                    Close();
+                }
             }
         }
 
@@ -280,18 +507,24 @@ namespace WpfApplication1
         {
             if (string.IsNullOrWhiteSpace(selector))
             {
+                Trace(LogLevel.Warning, "本次拾取没有返回有效的 Selector。");
                 return;
             }
 
             if (_applySelectorAction == null)
             {
+                Trace(LogLevel.Warning, "当前没有选中步骤，已改为把 Selector 复制到剪贴板：" + selector);
                 Clipboard.SetText(selector);
                 MessageBox.Show(this, "No step is selected. The selector was copied to clipboard instead.", "Element Picker", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
+            Trace(LogLevel.Info, "准备把拾取结果写回当前步骤：" + selector);
             _applySelectorAction(selector);
-            DialogResult = true;
+            if (!IsHiddenAutoPickMode)
+            {
+                DialogResult = true;
+            }
             Close();
         }
 
@@ -304,24 +537,128 @@ namespace WpfApplication1
                 _pickPollTimer = null;
             }
 
-            if (_pickingPage != null)
+            foreach (var page in _pickingPages.ToList())
             {
                 try
                 {
-                    _pickingPage.ExecuteScript("if (window.__ieRpaCleanupPicker) { window.__ieRpaCleanupPicker(); }");
+                    page.ExecuteScript("if (window.__ieRpaCleanupPicker) { window.__ieRpaCleanupPicker(); }");
+                    Trace(LogLevel.Info, "已清理拾取脚本：" + DescribePage(page));
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Trace(LogLevel.Warning, "清理拾取脚本失败：" + DescribePage(page) + "，原因：" + ex.Message);
                 }
-
-                _pickingPage = null;
             }
+
+            _pickingPages.Clear();
+            _lastLoggedStates.Clear();
+            _loggedPollErrors.Clear();
         }
 
         private void RestorePickerWindow()
         {
             WindowState = WindowState.Normal;
             Activate();
+        }
+
+        private bool IsHiddenAutoPickMode
+        {
+            get { return _hideWindowDuringAutoPick; }
+        }
+
+        private void ApplyWindowMode()
+        {
+            if (!IsHiddenAutoPickMode)
+            {
+                return;
+            }
+
+            ShowInTaskbar = false;
+            ShowActivated = false;
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            AllowsTransparency = true;
+            Background = Brushes.Transparent;
+            Opacity = 0;
+            Width = 1;
+            Height = 1;
+            Left = -10000;
+            Top = -10000;
+        }
+
+        public Task<bool> BeginAutoPickAsync()
+        {
+            _autoPickStartedSource = new TaskCompletionSource<bool>();
+            Trace(LogLevel.Info, "已进入隐藏拾取准备阶段。");
+            Dispatcher.BeginInvoke(new Action(StartPickSession), DispatcherPriority.ApplicationIdle);
+            return _autoPickStartedSource.Task;
+        }
+
+        private void SignalAutoPickStarted(bool started)
+        {
+            if (_autoPickStartedSource != null && !_autoPickStartedSource.Task.IsCompleted)
+            {
+                _autoPickStartedSource.SetResult(started);
+            }
+
+            Trace(started ? LogLevel.Info : LogLevel.Warning, "隐藏拾取启动结果：" + (started ? "成功" : "失败"));
+        }
+
+        private void LogStateIfChanged(IIePage page, string state)
+        {
+            var key = GetPageLogKey(page);
+            var normalizedState = string.IsNullOrWhiteSpace(state) ? "(empty)" : state;
+            string previousState;
+            if (_lastLoggedStates.TryGetValue(key, out previousState) && string.Equals(previousState, normalizedState, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _lastLoggedStates[key] = normalizedState;
+            Trace(LogLevel.Info, "页面状态变化：" + DescribePage(page) + " -> " + normalizedState);
+        }
+
+        private void LogPollError(IIePage page, Exception ex)
+        {
+            var key = GetPageLogKey(page);
+            if (_loggedPollErrors.Contains(key))
+            {
+                return;
+            }
+
+            _loggedPollErrors.Add(key);
+            Trace(LogLevel.Warning, "页面轮询失败：" + DescribePage(page) + "，原因：" + ex.Message);
+        }
+
+        private void Trace(LogLevel level, string message)
+        {
+            if (_traceLogAction != null && !string.IsNullOrWhiteSpace(message))
+            {
+                _traceLogAction(level, message);
+            }
+        }
+
+        private static int GetPageLogKey(IIePage page)
+        {
+            return page != null ? page.WindowHandle : 0;
+        }
+
+        private static string DescribePage(IIePage page)
+        {
+            if (page == null)
+            {
+                return "(null)";
+            }
+
+            return string.Format("Handle={0}, Title={1}, Url={2}",
+                page.WindowHandle,
+                SafeText(page.Title),
+                SafeText(page.Url));
+        }
+
+        private static string SafeText(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "(empty)" : value;
         }
 
         private static string BuildPickScript()
@@ -518,5 +855,25 @@ namespace WpfApplication1
 
             public IIePage Page { get; set; }
         }
+
+        private const uint GaRoot = 2;
+        private const uint GwHwndNext = 2;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetTopWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
     }
 }
+

@@ -1,16 +1,23 @@
-﻿namespace WpfApplication1.Enums
+namespace WpfApplication1.Enums
 {
     public enum StepType
     {
         LaunchIe,
         AttachIe,
         Navigate,
+        HttpGetData,
+        WaitForElement,
         WaitPageReady,
         ClickElement,
+        ClickAndSwitchWindow,
         InputText,
         ReadText,
         SelectOption,
         SwitchFrame,
+        PageListLoop,
+        QueryAndExportReport,
+        HttpUploadFile,
+        UpdateBusinessState,
         SwitchWindow,
         ExecuteScript,
         HandleAlert,
@@ -19,6 +26,8 @@
         SetVariable,
         Condition,
         Loop,
+        LoopStart,
+        LoopEnd,
         Delay,
         Screenshot,
         WriteLog

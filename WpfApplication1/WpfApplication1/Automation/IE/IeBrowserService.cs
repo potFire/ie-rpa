@@ -2,14 +2,19 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Tasks;
+using mshtml;
 using SHDocVw;
 
 namespace WpfApplication1.Automation.IE
 {
     public class IeBrowserService : IIeBrowserService
     {
+        private static readonly int HtmlGetObjectMessage = RegisterWindowMessage("WM_HTML_GETOBJECT");
+
         public async Task<IIePage> LaunchAsync(string url, int timeoutMs)
         {
             Exception launchException = null;
@@ -72,7 +77,7 @@ namespace WpfApplication1.Automation.IE
                 await Task.Delay(200);
             }
 
-            throw new InvalidOperationException("未找到可附加的 IE11 窗口。请先确认本机仍然能正常打开独立的 IE11 桌面浏览器。");
+            throw new InvalidOperationException("未找到可附加的 IE11 窗口。请先确认本机仍能正常打开独立的 IE11 桌面浏览器。");
         }
 
         public IList<IIePage> GetAllPages()
@@ -80,9 +85,17 @@ namespace WpfApplication1.Automation.IE
             try
             {
                 var pages = new List<IIePage>();
+                var seenBrowserKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var seenHandles = new HashSet<int>();
+
                 foreach (var browser in EnumerateIeBrowsers())
                 {
-                    pages.Add(new IePage(browser));
+                    AddPage(pages, seenBrowserKeys, seenHandles, new IePage(browser));
+                }
+
+                foreach (var page in EnumerateIePagesFromDesktopWindows())
+                {
+                    AddPage(pages, seenBrowserKeys, seenHandles, page);
                 }
 
                 return pages;
@@ -257,6 +270,92 @@ namespace WpfApplication1.Automation.IE
             }
         }
 
+        private static IEnumerable<IIePage> EnumerateIePagesFromDesktopWindows()
+        {
+            var pages = new List<IIePage>();
+            EnumWindows((windowHandle, _) =>
+            {
+                if (!IsIeFrameWindow(windowHandle))
+                {
+                    return true;
+                }
+
+                var serverHandles = FindInternetExplorerServerWindows(windowHandle);
+                if (serverHandles.Count == 0)
+                {
+                    return true;
+                }
+
+                foreach (var serverHandle in serverHandles)
+                {
+                    var document = TryGetDocumentFromServerWindow(serverHandle);
+                    if (document == null)
+                    {
+                        continue;
+                    }
+
+                    var browser = TryGetBrowserFromDocument(document);
+                    if (!IsInternetExplorerWindow(browser))
+                    {
+                        continue;
+                    }
+
+                    pages.Add(new IePage(browser, document, serverHandle.ToInt32()));
+                }
+
+                return true;
+            }, IntPtr.Zero);
+
+            return pages;
+        }
+
+        private static void AddPage(ICollection<IIePage> pages, ISet<string> seenBrowserKeys, ISet<int> seenHandles, IIePage page)
+        {
+            if (page == null)
+            {
+                return;
+            }
+
+            var browserKey = page.BrowserIdentityKey;
+            if (!string.IsNullOrWhiteSpace(browserKey))
+            {
+                if (seenBrowserKeys.Contains(browserKey))
+                {
+                    return;
+                }
+
+                seenBrowserKeys.Add(browserKey);
+                pages.Add(page);
+                return;
+            }
+
+            var handle = page.WindowHandle;
+            if (handle != 0)
+            {
+                if (seenHandles.Contains(handle))
+                {
+                    if (pages.Any(existing =>
+                        string.Equals(existing.Title, page.Title, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(existing.Url, page.Url, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    seenHandles.Add(handle);
+                }
+            }
+            else if (pages.Any(existing =>
+                string.Equals(existing.Title, page.Title, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(existing.Url, page.Url, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            pages.Add(page);
+        }
+
         private static bool IsInternetExplorerWindow(IWebBrowser2 browser)
         {
             if (browser == null)
@@ -274,6 +373,103 @@ namespace WpfApplication1.Automation.IE
             {
                 return false;
             }
+        }
+
+        private static bool IsIeFrameWindow(IntPtr windowHandle)
+        {
+            var className = GetWindowClassName(windowHandle);
+            return string.Equals(className, "IEFrame", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(className, "Internet Explorer_TridentDlgFrame", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(className, "Frame Tab", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static List<IntPtr> FindInternetExplorerServerWindows(IntPtr rootHandle)
+        {
+            var result = new List<IntPtr>();
+            EnumChildWindows(rootHandle, (childHandle, _) =>
+            {
+                if (string.Equals(GetWindowClassName(childHandle), "Internet Explorer_Server", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Add(childHandle);
+                }
+
+                return true;
+            }, IntPtr.Zero);
+
+            return result;
+        }
+
+        private static IHTMLDocument2 TryGetDocumentFromServerWindow(IntPtr serverHandle)
+        {
+            if (serverHandle == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            IntPtr result;
+            var sendResult = SendMessageTimeout(
+                serverHandle,
+                HtmlGetObjectMessage,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                SendMessageTimeoutFlags.AbortIfHung,
+                1000,
+                out result);
+            if (sendResult == IntPtr.Zero || result == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            object documentObject;
+            var documentGuid = typeof(IHTMLDocument2).GUID;
+            var hr = ObjectFromLresult(result, ref documentGuid, IntPtr.Zero, out documentObject);
+            if (hr != 0)
+            {
+                return null;
+            }
+
+            return documentObject as IHTMLDocument2;
+        }
+
+        private static IWebBrowser2 TryGetBrowserFromDocument(IHTMLDocument2 document)
+        {
+            if (document == null)
+            {
+                return null;
+            }
+
+            var serviceProvider = document as NativeIServiceProvider;
+            if (serviceProvider == null && document.parentWindow != null)
+            {
+                serviceProvider = document.parentWindow as NativeIServiceProvider;
+            }
+
+            if (serviceProvider == null)
+            {
+                return null;
+            }
+
+            object browserObject;
+            var serviceGuid = new Guid("0002DF05-0000-0000-C000-000000000046");
+            var browserGuid = typeof(IWebBrowser2).GUID;
+            var hr = serviceProvider.QueryService(ref serviceGuid, ref browserGuid, out browserObject);
+            if (hr != 0)
+            {
+                return null;
+            }
+
+            return browserObject as IWebBrowser2;
+        }
+
+        private static string GetWindowClassName(IntPtr windowHandle)
+        {
+            if (windowHandle == IntPtr.Zero)
+            {
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder(256);
+            return GetClassName(windowHandle, builder, builder.Capacity) > 0 ? builder.ToString() : string.Empty;
         }
 
         private static string ResolveIeExecutablePath()
@@ -314,11 +510,11 @@ namespace WpfApplication1.Automation.IE
             var message = "启动 IE 失败。";
             if (ex == null)
             {
-                message += " 当前系统没有返回明确的异常，但未能创建可自动化的 IE11 浏览器实例。";
+                message += " 当前系统没有返回明确异常，但未能创建可自动化的 IE11 浏览器实例。";
             }
             else if (MatchesHResult(ex, unchecked((int)0x800706B5)) || ContainsText(ex, "接口未知"))
             {
-                message += " 系统返回“接口未知”，通常表示当前机器上的 IE COM 接口不可用，或者已被系统策略、浏览器重定向等机制禁用。";
+                message += " 系统返回接口未知，通常表示当前机器上的 IE COM 接口不可用，或者已被系统策略、浏览器重定向等机制禁用。";
             }
             else if (MatchesHResult(ex, unchecked((int)0x80080005)))
             {
@@ -388,7 +584,56 @@ namespace WpfApplication1.Automation.IE
                 root = root.InnerException;
             }
 
-            return string.Format(" 原始错误：{0} (HRESULT: 0x{1:X8})", root.Message, root.HResult);
+            return string.Format(" 鍘熷閿欒锛歿0} (HRESULT: 0x{1:X8})", root.Message, root.HResult);
         }
+
+        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [Flags]
+        private enum SendMessageTimeoutFlags : uint
+        {
+            AbortIfHung = 0x0002
+        }
+
+        [ComImport]
+        [Guid("6D5140C1-7436-11CE-8034-00AA006009FA")]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface NativeIServiceProvider
+        {
+            [PreserveSig]
+            int QueryService(ref Guid guidService, ref Guid riid, [MarshalAs(UnmanagedType.Interface)] out object ppvObject);
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int RegisterWindowMessage(string lpString);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SendMessageTimeout(
+            IntPtr hWnd,
+            int msg,
+            IntPtr wParam,
+            IntPtr lParam,
+            SendMessageTimeoutFlags fuFlags,
+            uint uTimeout,
+            out IntPtr lpdwResult);
+
+        [DllImport("oleacc.dll")]
+        private static extern int ObjectFromLresult(
+            IntPtr lResult,
+            ref Guid riid,
+            IntPtr wParam,
+            [MarshalAs(UnmanagedType.Interface)] out object ppvObject);
     }
 }
+
+
+

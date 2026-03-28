@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -18,13 +19,26 @@ namespace WpfApplication1.Automation.IE
         private const string PreviousBackgroundAttribute = "data-ie-rpa-prev-background";
         private readonly IWebBrowser2 _browser;
         private readonly IHTMLDocument2 _document;
+        private readonly int? _windowHandle;
+        private readonly string _browserIdentityKey;
+        private readonly List<string> _frameSegments;
 
         public IePage(IWebBrowser2 browser)
-            : this(browser, null)
+            : this(browser, null, null, null)
         {
         }
 
         public IePage(IWebBrowser2 browser, IHTMLDocument2 document)
+            : this(browser, document, null, null)
+        {
+        }
+
+        public IePage(IWebBrowser2 browser, IHTMLDocument2 document, int? windowHandle)
+            : this(browser, document, windowHandle, null)
+        {
+        }
+
+        public IePage(IWebBrowser2 browser, IHTMLDocument2 document, int? windowHandle, IEnumerable<string> frameSegments)
         {
             if (browser == null)
             {
@@ -33,6 +47,9 @@ namespace WpfApplication1.Automation.IE
 
             _browser = browser;
             _document = document;
+            _windowHandle = windowHandle;
+            _browserIdentityKey = BuildComIdentity(browser);
+            _frameSegments = frameSegments != null ? new List<string>(frameSegments) : new List<string>();
         }
 
         public string Title
@@ -55,14 +72,29 @@ namespace WpfApplication1.Automation.IE
 
         public int WindowHandle
         {
-            get { return _browser.HWND; }
+            get { return _windowHandle ?? _browser.HWND; }
+        }
+
+        public string BrowserIdentityKey
+        {
+            get { return _browserIdentityKey; }
+        }
+
+        public string FramePathDisplay
+        {
+            get { return _frameSegments.Count == 0 ? "root" : string.Join(" > ", _frameSegments.ToArray()); }
+        }
+
+        public int FrameDepth
+        {
+            get { return _frameSegments.Count; }
         }
 
         public async Task NavigateAsync(string url, int timeoutMs)
         {
             if (string.IsNullOrWhiteSpace(url))
             {
-                throw new InvalidOperationException("导航地址不能为空。");
+                throw new InvalidOperationException("Navigation url cannot be empty.");
             }
 
             _browser.Navigate(url);
@@ -92,7 +124,7 @@ namespace WpfApplication1.Automation.IE
                 await Task.Delay(150);
             }
 
-            throw new TimeoutException("等待 IE 页面加载完成超时。");
+            throw new TimeoutException("Timed out while waiting for the IE page to be ready.");
         }
 
         public IIeElement FindElement(SelectorDefinition selector)
@@ -100,16 +132,83 @@ namespace WpfApplication1.Automation.IE
             var document = ResolveDocument(selector != null ? selector.FramePath : null);
             if (document == null)
             {
-                throw new InvalidOperationException("当前页面文档不可用。");
+                throw new InvalidOperationException("Current page document is not available.");
             }
 
             var matchedElement = FindDomElement(document, selector);
             if (matchedElement == null)
             {
-                throw new InvalidOperationException("未找到匹配的 IE 元素。");
+                throw new InvalidOperationException("No matching IE element was found.");
             }
 
             return new IeElement(matchedElement);
+        }
+
+        public IIePage EnterFrame(SelectorDefinition selector)
+        {
+            var document = ResolveDocument(selector != null ? selector.FramePath : null);
+            if (document == null)
+            {
+                throw new InvalidOperationException("Current page document is not available.");
+            }
+
+            var frameElement = FindDomElement(document, selector);
+            if (frameElement == null)
+            {
+                throw new InvalidOperationException("No matching iframe/frame element was found.");
+            }
+
+            var frameDocument = ResolveFrameDocument(frameElement);
+            if (frameDocument == null)
+            {
+                throw new InvalidOperationException("The target element is not a valid iframe/frame.");
+            }
+
+            var segments = new List<string>(_frameSegments)
+            {
+                BuildFrameSegment(selector, frameElement)
+            };
+            return new IePage(_browser, frameDocument, _windowHandle, segments);
+        }
+
+        public IIePage GetParentFramePage()
+        {
+            var document = GetCurrentDocument();
+            if (document == null)
+            {
+                throw new InvalidOperationException("Current page document is not available.");
+            }
+
+            var window = document.parentWindow;
+            if (window == null)
+            {
+                return new IePage(_browser);
+            }
+
+            var parentWindow = GetParentWindow(window);
+            if (parentWindow == null)
+            {
+                return new IePage(_browser);
+            }
+
+            var parentDocument = SafeGetDocument(parentWindow);
+            if (parentDocument == null || SameDocument(parentDocument, document))
+            {
+                return new IePage(_browser);
+            }
+
+            var segments = new List<string>(_frameSegments);
+            if (segments.Count > 0)
+            {
+                segments.RemoveAt(segments.Count - 1);
+            }
+
+            return new IePage(_browser, parentDocument, _windowHandle, segments);
+        }
+
+        public IIePage GetRootPage()
+        {
+            return new IePage(_browser);
         }
 
         public IIePage GetFramePage(string framePath)
@@ -119,7 +218,11 @@ namespace WpfApplication1.Automation.IE
                 return new IePage(_browser);
             }
 
-            return new IePage(_browser, ResolveDocument(framePath));
+            var parts = framePath.Split(new[] { '/', '>' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(item => item.Trim())
+                .Where(item => item.Length > 0)
+                .ToArray();
+            return new IePage(_browser, ResolveDocument(framePath), _windowHandle, parts);
         }
 
         public void ExecuteScript(string script)
@@ -155,6 +258,44 @@ namespace WpfApplication1.Automation.IE
             }
 
             return document.documentElement.outerHTML;
+        }
+
+        public void Activate()
+        {
+            var windowHandle = new IntPtr(WindowHandle);
+            if (windowHandle != IntPtr.Zero)
+            {
+                var rootHandle = GetAncestor(windowHandle, GaRoot);
+                if (rootHandle != IntPtr.Zero)
+                {
+                    ShowWindow(rootHandle, SwShow);
+                    SetForegroundWindow(rootHandle);
+                }
+            }
+
+            var document = GetCurrentDocument();
+            if (document == null)
+            {
+                return;
+            }
+
+            var window = document.parentWindow;
+            if (window != null)
+            {
+                try
+                {
+                    window.focus();
+                }
+                catch
+                {
+                }
+            }
+
+            var body = document.body as IHTMLElement2;
+            if (body != null)
+            {
+                TryFocus(body);
+            }
         }
 
         public IList<ElementSummary> ListElements(int maxCount)
@@ -206,7 +347,7 @@ namespace WpfApplication1.Automation.IE
             var document = ResolveDocument(selector != null ? selector.FramePath : null);
             if (document == null)
             {
-                throw new InvalidOperationException("当前页面文档不可用，无法高亮元素。");
+                throw new InvalidOperationException("Current page document is not available, cannot highlight the element.");
             }
 
             ClearExistingHighlights(document);
@@ -214,7 +355,7 @@ namespace WpfApplication1.Automation.IE
             var matchedElement = FindDomElement(document, selector);
             if (matchedElement == null)
             {
-                throw new InvalidOperationException("未找到可高亮的元素。");
+                throw new InvalidOperationException("No element could be highlighted.");
             }
 
             var style = matchedElement.style;
@@ -349,16 +490,55 @@ namespace WpfApplication1.Automation.IE
             var document = GetCurrentDocument();
             if (document == null)
             {
-                throw new InvalidOperationException("当前页面文档不可用。");
+                throw new InvalidOperationException("Current page document is not available.");
             }
 
             var window = document.parentWindow;
             if (window == null)
             {
-                throw new InvalidOperationException("当前页面窗口不可用。");
+                throw new InvalidOperationException("Current page window is not available.");
             }
 
             return window;
+        }
+
+        private static IHTMLDocument2 ResolveFrameDocument(IHTMLElement frameElement)
+        {
+            if (frameElement == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var contentWindow = frameElement.GetType().InvokeMember(
+                    "contentWindow",
+                    BindingFlags.GetProperty,
+                    null,
+                    frameElement,
+                    null) as IHTMLWindow2;
+                if (contentWindow != null)
+                {
+                    return SafeGetDocument(contentWindow);
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                return frameElement.GetType().InvokeMember(
+                    "contentDocument",
+                    BindingFlags.GetProperty,
+                    null,
+                    frameElement,
+                    null) as IHTMLDocument2;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private IHTMLDocument2 GetCurrentDocument()
@@ -376,6 +556,50 @@ namespace WpfApplication1.Automation.IE
             {
                 return null;
             }
+        }
+
+        private static IHTMLWindow2 GetParentWindow(IHTMLWindow2 window)
+        {
+            if (window == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return window.parent;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static IHTMLDocument2 SafeGetDocument(IHTMLWindow2 window)
+        {
+            if (window == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return window.document;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool SameDocument(IHTMLDocument2 left, IHTMLDocument2 right)
+        {
+            if (left == null || right == null)
+            {
+                return false;
+            }
+
+            return StringEquals(left.url, right.url) && StringEquals(left.title, right.title);
         }
 
         private IHTMLDocument2 ResolveDocument(string framePath)
@@ -397,7 +621,7 @@ namespace WpfApplication1.Automation.IE
                 var frames = document.frames as IHTMLFramesCollection2;
                 if (frames == null)
                 {
-                    throw new InvalidOperationException("当前页面不包含可切换的 frame。");
+                    throw new InvalidOperationException("The current page does not contain a switchable frame.");
                 }
 
                 object frameKey;
@@ -414,7 +638,7 @@ namespace WpfApplication1.Automation.IE
                 var frameWindow = frames.item(ref frameKey) as IHTMLWindow2;
                 if (frameWindow == null || frameWindow.document == null)
                 {
-                    throw new InvalidOperationException("未找到指定的 frame：" + rawPart);
+                    throw new InvalidOperationException("Could not find the target frame: " + rawPart);
                 }
 
                 document = frameWindow.document;
@@ -654,5 +878,80 @@ namespace WpfApplication1.Automation.IE
         {
             return string.Equals(left ?? string.Empty, right ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         }
+
+        private static string BuildFrameSegment(SelectorDefinition selector, IHTMLElement element)
+        {
+            if (selector != null)
+            {
+                if (!string.IsNullOrWhiteSpace(selector.XPath))
+                {
+                    return selector.XPath;
+                }
+
+                if (!string.IsNullOrWhiteSpace(selector.Id))
+                {
+                    return "id=" + selector.Id;
+                }
+
+                if (!string.IsNullOrWhiteSpace(selector.Name))
+                {
+                    return "name=" + selector.Name;
+                }
+            }
+
+            var tagName = element != null ? (element.tagName ?? string.Empty).ToLowerInvariant() : "frame";
+            var id = element != null ? Convert.ToString(element.getAttribute("id", 0)) : string.Empty;
+            return !string.IsNullOrWhiteSpace(id) ? tagName + "#" + id : tagName;
+        }
+
+        private static string BuildComIdentity(object comObject)
+        {
+            if (comObject == null)
+            {
+                return string.Empty;
+            }
+
+            IntPtr unknown = IntPtr.Zero;
+            try
+            {
+                unknown = Marshal.GetIUnknownForObject(comObject);
+                return unknown.ToString();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+            finally
+            {
+                if (unknown != IntPtr.Zero)
+                {
+                    Marshal.Release(unknown);
+                }
+            }
+        }
+        private static void TryFocus(IHTMLElement2 element)
+        {
+            try
+            {
+                element.focus();
+            }
+            catch
+            {
+            }
+        }
+
+        private const uint GaRoot = 2;
+        private const int SwShow = 5;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     }
 }
+
+

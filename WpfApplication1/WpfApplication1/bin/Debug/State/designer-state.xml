@@ -1,0 +1,87 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<designerState>
+  <employeeId>123456</employeeId>
+  <selectedStepId>b805e862de2e424c94418440645e6431</selectedStepId>
+  <activeWorkflowPath>E:\project\rider\ie-rpa\WpfApplication1\WpfApplication1\bin\Debug\Workflows\Catalog\General\IE 表单提交流程.ierpa.json</activeWorkflowPath>
+  <activeWorkflowId>f2ff437bae37479caa8ef011f0bc1b0b</activeWorkflowId>
+  <selectedShellPage>LogCenter</selectedShellPage>
+  <designerLeftPaneWidth>280</designerLeftPaneWidth>
+  <designerRightPaneWidth>360</designerRightPaneWidth>
+  <logDrawerHeight>240</logDrawerHeight>
+  <isLogDrawerExpanded>false</isLogDrawerExpanded>
+  <workflowManagementFilterType></workflowManagementFilterType>
+  <designerZoom>1</designerZoom>
+  <canvasViewportOffsetX>877.550405561993</canvasViewportOffsetX>
+  <canvasViewportOffsetY>0</canvasViewportOffsetY>
+  <schedulerSettings>
+    <applyWorkflowId>f2ff437bae37479caa8ef011f0bc1b0b</applyWorkflowId>
+    <queryWorkflowId>f2ff437bae37479caa8ef011f0bc1b0b</queryWorkflowId>
+    <approvalWorkflowId>f2ff437bae37479caa8ef011f0bc1b0b</approvalWorkflowId>
+    <applyPriority>true</applyPriority>
+    <maxContinuousApplyCount>3</maxContinuousApplyCount>
+    <mainLoopIntervalMs>2000</mainLoopIntervalMs>
+    <queryIntervalWhenNoApplyMs>5000</queryIntervalWhenNoApplyMs>
+    <resumePromptOnStartup>true</resumePromptOnStartup>
+  </schedulerSettings>
+  <workflow id="f2ff437bae37479caa8ef011f0bc1b0b" name="IE 表单提交流程" version="0.1.1" workflowType="General" description="" applicableRole="" lastModifiedAt="2026-03-28T16:53:01.6197549+08:00" isPublished="true">
+    <canvasLayout zoom="1">
+      <nodes>
+        <node stepId="1d89581bbcf1499b805e7502604ba2c1" x="27.3333333333334" y="24" width="200" height="88" visualGroup="Main" />
+        <node stepId="5a7e20f6d57c4ca5aa78bcbe7aa3a72b" x="203.333333333333" y="166" width="200" height="88" visualGroup="Main" />
+        <node stepId="357d8dededd94983a9f17ab8dfbf0ce1" x="466.666666666667" y="38.6666666666666" width="200" height="88" visualGroup="Main" />
+        <node stepId="85b100a35781467284fc94962c9fb570" x="559.333333333333" y="230" width="200" height="88" visualGroup="Main" />
+        <node stepId="a0aa3b1a81ab41308643a3fdb7e5050d" x="814.666666666667" y="60" width="200" height="88" visualGroup="Main" />
+        <node stepId="bcf70337cab6415d99441609a0306421" x="1067.33333333333" y="223.333333333333" width="200" height="88" visualGroup="Main" />
+        <node stepId="b805e862de2e424c94418440645e6431" x="1328.66666666667" y="73.3333333333333" width="200" height="88" visualGroup="Main" />
+      </nodes>
+      <connections>
+        <connection from="1d89581bbcf1499b805e7502604ba2c1" to="5a7e20f6d57c4ca5aa78bcbe7aa3a72b" />
+        <connection from="5a7e20f6d57c4ca5aa78bcbe7aa3a72b" to="357d8dededd94983a9f17ab8dfbf0ce1" />
+        <connection from="357d8dededd94983a9f17ab8dfbf0ce1" to="85b100a35781467284fc94962c9fb570" />
+        <connection from="85b100a35781467284fc94962c9fb570" to="a0aa3b1a81ab41308643a3fdb7e5050d" />
+        <connection from="a0aa3b1a81ab41308643a3fdb7e5050d" to="bcf70337cab6415d99441609a0306421" />
+        <connection from="bcf70337cab6415d99441609a0306421" to="b805e862de2e424c94418440645e6431" />
+      </connections>
+    </canvasLayout>
+    <steps>
+      <step id="1d89581bbcf1499b805e7502604ba2c1" name="启动 IE" stepType="LaunchIe" timeoutMs="10000" retryCount="0" continueOnError="false">
+        <parameters>
+          <parameter key="url" value="https://www.hao123.com" />
+        </parameters>
+      </step>
+      <step id="5a7e20f6d57c4ca5aa78bcbe7aa3a72b" name="等待页面完成" stepType="WaitPageReady" timeoutMs="10000" retryCount="0" continueOnError="false">
+        <parameters />
+      </step>
+      <step id="357d8dededd94983a9f17ab8dfbf0ce1" name="输入文本" stepType="InputText" timeoutMs="10000" retryCount="0" continueOnError="false">
+        <parameters>
+          <parameter key="selector" value="xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/form[1]/div[2]/input[1]" />
+          <parameter key="text" value="剑河罗" />
+        </parameters>
+      </step>
+      <step id="85b100a35781467284fc94962c9fb570" name="点击元素" stepType="ClickElement" timeoutMs="10000" retryCount="0" continueOnError="false">
+        <parameters>
+          <parameter key="selector" value="xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/form[1]/div[3]/input[1]" />
+        </parameters>
+      </step>
+      <step id="a0aa3b1a81ab41308643a3fdb7e5050d" name="切换窗口" stepType="SwitchWindow" timeoutMs="10000" retryCount="0" continueOnError="false">
+        <parameters>
+          <parameter key="mode" value="last" />
+          <parameter key="waitForNewWindow" value="true" />
+          <parameter key="excludeCurrent" value="true" />
+          <parameter key="urlContains" value="剑河罗" />
+        </parameters>
+      </step>
+      <step id="bcf70337cab6415d99441609a0306421" name="输入文本" stepType="InputText" timeoutMs="10000" retryCount="0" continueOnError="false">
+        <parameters>
+          <parameter key="selector" value="xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[2]/textarea[1]" />
+          <parameter key="text" value="赵本山" />
+        </parameters>
+      </step>
+      <step id="b805e862de2e424c94418440645e6431" name="点击元素" stepType="ClickElement" timeoutMs="10000" retryCount="0" continueOnError="false">
+        <parameters>
+          <parameter key="selector" value="xpath=/html[1]/body[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[3]/div[3]/button[1]" />
+        </parameters>
+      </step>
+    </steps>
+  </workflow>
+</designerState>

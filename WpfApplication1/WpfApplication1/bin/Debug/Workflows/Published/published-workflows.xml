@@ -1,0 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<publishedWorkflows>
+  <workflow workflowId="f2ff437bae37479caa8ef011f0bc1b0b" workflowName="IE 表单提交流程" workflowType="General" applicableRole="" sourcePath="E:\project\rider\ie-rpa\WpfApplication1\WpfApplication1\bin\Debug\Workflows\Catalog\General\IE 表单提交流程.ierpa.json" publishedSnapshotPath="E:\project\rider\ie-rpa\WpfApplication1\WpfApplication1\bin\Debug\Workflows\Published\f2ff437bae37479caa8ef011f0bc1b0b.ierpa.json" publishedAt="2026-03-28T16:53:01.6177551+08:00" version="0.1.1" />
+</publishedWorkflows>

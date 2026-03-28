@@ -11,11 +11,23 @@ namespace WpfApplication1.Automation.IE
 
         int WindowHandle { get; }
 
+        string BrowserIdentityKey { get; }
+
+        string FramePathDisplay { get; }
+
+        int FrameDepth { get; }
+
         System.Threading.Tasks.Task NavigateAsync(string url, int timeoutMs);
 
         System.Threading.Tasks.Task WaitForReadyAsync(int timeoutMs);
 
         IIeElement FindElement(SelectorDefinition selector);
+
+        IIePage EnterFrame(SelectorDefinition selector);
+
+        IIePage GetParentFramePage();
+
+        IIePage GetRootPage();
 
         IIePage GetFramePage(string framePath);
 
@@ -25,8 +37,8 @@ namespace WpfApplication1.Automation.IE
 
         string GetHtml();
 
-        // 元素拾取器会用到这个接口，把当前页面里较常用的元素信息列出来。
-        // 第一版不做复杂录制，但至少要支持高亮预览，方便用户确认 selector 是否准确。
+        void Activate();
+
         IList<ElementSummary> ListElements(int maxCount);
 
         void HighlightElement(SelectorDefinition selector);

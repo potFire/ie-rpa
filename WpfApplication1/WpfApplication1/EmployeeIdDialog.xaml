@@ -1,0 +1,44 @@
+﻿<Window x:Class="WpfApplication1.EmployeeIdDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="用户中心"
+        Height="220"
+        Width="420"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock FontSize="20"
+                   FontWeight="SemiBold"
+                   Text="设置当前工号" />
+        <TextBlock Grid.Row="1"
+                   Margin="0,10,0,0"
+                   Foreground="#5B6470"
+                   Text="程序会把工号保存到本地 XML，并在运行 GET 请求步骤时自动带入 jobNo。" />
+        <TextBox x:Name="EmployeeIdTextBox"
+                 Grid.Row="2"
+                 Height="34"
+                 Margin="0,16,0,0"
+                 VerticalContentAlignment="Center" />
+
+        <StackPanel Grid.Row="3"
+                    Margin="0,20,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button x:Name="CancelButton"
+                    Width="88"
+                    Margin="0,0,8,0"
+                    Click="CancelButton_OnClick"
+                    Content="取消" />
+            <Button Width="88"
+                    Click="SaveButton_OnClick"
+                    Content="保存" />
+        </StackPanel>
+    </Grid>
+</Window>
